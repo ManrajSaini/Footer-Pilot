@@ -8,13 +8,17 @@ from app.config import get_settings
 from app.db import get_session
 from app.google import get_google
 from app.google.base import ADMIN_CONSOLE_DELEGATION_URL, SCOPES, GoogleGateways
-from app.models import User
+from app.models import Organization, User
 from app.services import accounts
 from app.services.connection import VerifyResult, verify_connection
-from app.web.deps import APP_HOME_PATH, AccessDenied, require_member
+from app.tasks.sync import request_sync
+from app.web.deps import APP_HOME_PATH, AccessDenied, current_org, require_member
+from app.web.employees import sync_context
 from app.web.templating import templates
 
 router = APIRouter()
+
+SETUP_SYNC_PATH = "/app/setup/sync"
 
 # What the admin sees when verification fails: (title, explanation).
 FAILURE_MESSAGES: dict[VerifyResult, tuple[str, str]] = {
@@ -67,9 +71,11 @@ async def verify(
     result = await verify_connection(session, google, user)
 
     if result is VerifyResult.CONNECTED:
+        # Start reading the directory straight away; step 4 shows the progress.
+        await request_sync(session, user.organization)
         if request.headers.get("HX-Request"):
-            return Response(status_code=200, headers={"HX-Redirect": APP_HOME_PATH})
-        return RedirectResponse(APP_HOME_PATH, status_code=303)
+            return Response(status_code=200, headers={"HX-Redirect": SETUP_SYNC_PATH})
+        return RedirectResponse(SETUP_SYNC_PATH, status_code=303)
 
     if result is VerifyResult.ALREADY_OWNED:
         raise AccessDenied(user, await accounts.owner_email(session, user.organization))
@@ -80,3 +86,16 @@ async def verify(
         "app/_verify_result.html",
         {"title": title, "explanation": explanation, "user": user},
     )
+
+
+@router.get(SETUP_SYNC_PATH, response_class=HTMLResponse)
+async def setup_sync(
+    request: Request,
+    organization: Organization = Depends(current_org),
+    user: User = Depends(require_member),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """Step 4: the first directory sync."""
+    context = await sync_context(session, organization, "setup")
+    context["user"] = user
+    return templates.TemplateResponse(request, "app/setup_sync.html", context)

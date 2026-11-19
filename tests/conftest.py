@@ -32,7 +32,15 @@ os.environ.update(
     }
 )
 
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+
+# Uploaded files go to a throwaway folder, never to the developer's var/media.
+MEDIA_ROOT = tempfile.mkdtemp(prefix="footerpilot-test-media-")
+os.environ["MEDIA_ROOT"] = MEDIA_ROOT
+
 from collections.abc import AsyncIterator, Awaitable, Callable  # noqa: E402
+from datetime import UTC, datetime  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 import psycopg  # noqa: E402
@@ -46,13 +54,20 @@ from sqlalchemy import text  # noqa: E402
 from alembic import command  # noqa: E402
 from app.db import Database  # noqa: E402
 from app.main import create_app  # noqa: E402
-from app.models import Base, User  # noqa: E402
+from app.models import Base, Organization, OrgStatus, User  # noqa: E402
 from app.runtime import new_event_loop  # noqa: E402
 from app.services import accounts  # noqa: E402
 from app.services.accounts import GoogleIdentity  # noqa: E402
 from app.tasks import procrastinate_app  # noqa: E402
+from app.tasks.context import WorkerContext, set_context  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _remove_test_media():
+    yield
+    shutil.rmtree(MEDIA_ROOT, ignore_errors=True)
 
 
 def pytest_asyncio_loop_factories(config, item):
@@ -135,3 +150,40 @@ def make_user(db: Database) -> MakeUser:
             )
 
     return _make
+
+
+@pytest.fixture
+def make_owner(db: Database, make_user: MakeUser) -> MakeUser:
+    """A user whose organisation is already connected, with them as its owner."""
+
+    async def _make(email: str, name: str = "") -> User:
+        user = await make_user(email, name)
+        async with db.session() as session:
+            organization = await session.get(Organization, user.org_id)
+            organization.owner_user_id = user.id
+            organization.status = OrgStatus.CONNECTED
+            organization.google_customer_id = "C-test"
+            organization.connected_at = datetime.now(UTC)
+            await session.commit()
+        async with db.session() as session:
+            return await session.get(User, user.id)
+
+    return _make
+
+
+@pytest.fixture
+def run_jobs(app: FastAPI, job_queue: InMemoryConnector):
+    """Run every queued background job now, in-process: `await run_jobs()`.
+
+    Jobs use the app's own database, Google gateways and storage, read at call time,
+    so a test can swap `app.state.google` first.
+    """
+
+    async def _run() -> None:
+        set_context(
+            WorkerContext(db=app.state.db, google=app.state.google, storage=app.state.storage)
+        )
+        await procrastinate_app.run_worker_async(wait=False)
+
+    yield _run
+    set_context(None)

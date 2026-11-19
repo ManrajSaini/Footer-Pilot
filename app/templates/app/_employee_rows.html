@@ -1,0 +1,10 @@
+{# The table body: every row, or an empty-state message. #}
+{% for employee in employees %}
+{% include "app/_employee_row.html" %}
+{% else %}
+<tr>
+  <td colspan="6" class="px-4 py-10 text-center text-sm text-slate-500">
+    {% if search %}Nobody matches "{{ search }}".{% else %}No employees yet. Use Sync now to read your directory.{% endif %}
+  </td>
+</tr>
+{% endfor %}

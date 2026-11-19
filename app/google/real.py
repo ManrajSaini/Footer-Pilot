@@ -9,6 +9,7 @@ import base64
 import binascii
 import json
 import logging
+import threading
 from typing import Any
 
 import google_auth_httplib2
@@ -22,6 +23,8 @@ from app.google.base import (
     SCOPE_DIRECTORY,
     SCOPE_GMAIL_SETTINGS,
     AdminInfo,
+    DirectoryPhoto,
+    DirectoryUser,
     GoogleError,
     GoogleUnavailableError,
     NotAdminError,
@@ -83,7 +86,69 @@ class _DelegatedClient:
             raise translate_error(error) from error
 
 
+# thumbnailPhotoUrl is requested although it is never used: Google omits
+# thumbnailPhotoEtag from the response unless the URL is asked for alongside it
+# (observed against the live API), and without the etag no photo is ever fetched.
+_USER_FIELDS = (
+    "id,primaryEmail,name(givenName,familyName,fullName),organizations(title,department,primary),"
+    "phones(value,type,primary),suspended,archived,isMailboxSetup,"
+    "thumbnailPhotoEtag,thumbnailPhotoUrl"
+)
+PAGE_SIZE = 500  # the Directory API's maximum
+
+
+def _first(items: list[dict[str, Any]], *, where=lambda item: True) -> dict[str, Any]:
+    return next((item for item in items if where(item)), {})
+
+
+def parse_directory_user(resource: dict[str, Any]) -> DirectoryUser:
+    """Reduce a Directory API user resource to the fields signatures use."""
+    name = resource.get("name") or {}
+    organizations = resource.get("organizations") or []
+    organization = _first(organizations, where=lambda o: o.get("primary")) or _first(organizations)
+
+    phones = [phone for phone in resource.get("phones") or [] if phone.get("value")]
+    work = _first(phones, where=lambda p: p.get("type") == "work") or _first(
+        phones, where=lambda p: p.get("type") not in ("mobile", "home")
+    )
+    mobile = _first(phones, where=lambda p: p.get("type") == "mobile")
+
+    return DirectoryUser(
+        id=str(resource["id"]),
+        email=str(resource["primaryEmail"]).lower(),
+        first_name=name.get("givenName") or "",
+        last_name=name.get("familyName") or "",
+        full_name=name.get("fullName") or "",
+        job_title=organization.get("title") or "",
+        department=organization.get("department") or "",
+        phone_work=work.get("value") or "",
+        phone_mobile=mobile.get("value") or "",
+        suspended=bool(resource.get("suspended")),
+        archived=bool(resource.get("archived")),
+        has_mailbox=bool(resource.get("isMailboxSetup", True)),
+        photo_etag=resource.get("thumbnailPhotoEtag") or None,
+    )
+
+
 class RealDirectoryGateway(_DelegatedClient):
+    def __init__(self, service_account_info: dict[str, Any]) -> None:
+        super().__init__(service_account_info)
+        # A sync makes many calls as the same admin; reuse the token between them.
+        self._cached: dict[str, service_account.Credentials] = {}
+        self._lock = threading.Lock()
+
+    def _service(self, admin_email: str):
+        with self._lock:
+            credentials = self._cached.get(admin_email)
+            if credentials is None:
+                credentials = self._credentials(admin_email, SCOPE_DIRECTORY)
+                self._cached[admin_email] = credentials
+            if not credentials.valid:
+                credentials.refresh(google_auth_httplib2.Request(self._http()))
+        # httplib2 connections are not thread-safe, so each call gets its own.
+        http = google_auth_httplib2.AuthorizedHttp(credentials, http=self._http())
+        return build("admin", "directory_v1", http=http, cache_discovery=False)
+
     async def verify_admin(self, admin_email: str) -> AdminInfo:
         user = await self._run(self._get_user, admin_email)
         if not user.get("isAdmin"):
@@ -93,15 +158,55 @@ class RealDirectoryGateway(_DelegatedClient):
         )
 
     def _get_user(self, email: str) -> dict[str, Any]:
-        http = google_auth_httplib2.AuthorizedHttp(
-            self._credentials(email, SCOPE_DIRECTORY), http=self._http()
-        )
-        service = build("admin", "directory_v1", http=http, cache_discovery=False)
         # The default (admin) view fails with 403 for anyone who is not an admin.
-        request = service.users().get(
-            userKey=email, fields="primaryEmail,isAdmin,isDelegatedAdmin,customerId"
+        request = (
+            self._service(email)
+            .users()
+            .get(userKey=email, fields="primaryEmail,isAdmin,isDelegatedAdmin,customerId")
         )
         return request.execute()
+
+    async def list_users(self, admin_email: str) -> list[DirectoryUser]:
+        users: list[DirectoryUser] = []
+        page_token: str | None = None
+        while True:
+            page = await self._run(self._list_page, admin_email, page_token)
+            users.extend(parse_directory_user(resource) for resource in page.get("users") or [])
+            page_token = page.get("nextPageToken")
+            if not page_token:
+                return users
+
+    def _list_page(self, admin_email: str, page_token: str | None) -> dict[str, Any]:
+        request = (
+            self._service(admin_email)
+            .users()
+            .list(
+                customer="my_customer",
+                maxResults=PAGE_SIZE,
+                projection="full",
+                orderBy="email",
+                pageToken=page_token,
+                fields=f"nextPageToken,users({_USER_FIELDS})",
+            )
+        )
+        return request.execute()
+
+    async def get_photo(self, admin_email: str, user_id: str) -> DirectoryPhoto | None:
+        photo = await self._run(self._get_photo, admin_email, user_id)
+        if photo is None or not photo.get("photoData"):
+            return None
+        # Google sends the image as URL-safe base64, sometimes without padding.
+        encoded = photo["photoData"]
+        data = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
+        return DirectoryPhoto(data=data, mime_type=photo.get("mimeType") or "image/jpeg")
+
+    def _get_photo(self, admin_email: str, user_id: str) -> dict[str, Any] | None:
+        try:
+            return self._service(admin_email).users().photos().get(userKey=user_id).execute()
+        except HttpError as error:
+            if error.resp.status == 404:  # no photo set
+                return None
+            raise
 
 
 class RealGmailGateway(_DelegatedClient):

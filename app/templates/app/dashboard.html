@@ -7,7 +7,7 @@
   <h1 class="text-3xl font-bold tracking-tight">{{ organization.name }}</h1>
   <p class="mt-2 text-slate-600">Signed in as {{ user.email }}</p>
 
-  <dl class="mt-8 grid gap-6 sm:grid-cols-3">
+  <dl class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
     <div class="rounded-xl border border-slate-200 bg-white p-6">
       <dt class="text-sm font-medium text-slate-500">Google Workspace</dt>
       <dd class="mt-2 flex items-center gap-2 text-lg font-semibold">
@@ -22,6 +22,13 @@
       </dd>
       <dd class="mt-1 text-sm text-slate-600">Customer ID {{ organization.google_customer_id or "unknown" }}</dd>
     </div>
+    <a href="/app/employees" class="rounded-xl border border-slate-200 bg-white p-6 hover:border-brand-600">
+      <dt class="text-sm font-medium text-slate-500">Employees</dt>
+      <dd class="mt-2 text-lg font-semibold">{{ counts.total }}</dd>
+      <dd class="mt-1 text-sm text-slate-600">
+        {{ counts.included }} will get the signature · last synced {{ organization.last_sync_at | timeago }}
+      </dd>
+    </a>
     <div class="rounded-xl border border-slate-200 bg-white p-6">
       <dt class="text-sm font-medium text-slate-500">Plan</dt>
       <dd class="mt-2 text-lg font-semibold capitalize">{{ organization.plan }}</dd>

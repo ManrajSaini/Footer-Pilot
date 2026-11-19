@@ -9,5 +9,5 @@ from app.config import get_settings
 
 procrastinate_app = App(
     connector=PsycopgConnector(conninfo=get_settings().database_dsn),
-    import_paths=["app.tasks.system"],
+    import_paths=["app.tasks.system", "app.tasks.sync"],
 )

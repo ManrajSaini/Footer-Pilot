@@ -1,0 +1,13 @@
+[
+  {"local": "priya.raman", "first_name": "Priya", "last_name": "Raman", "job_title": "Head of Operations", "department": "Operations", "phone_work": "+1 415 555 0101", "phone_mobile": "+1 415 555 0191", "photo": true},
+  {"local": "james.okafor", "first_name": "James", "last_name": "Okafor", "job_title": "Account Executive", "department": "Sales", "phone_work": "+1 415 555 0102", "photo": true},
+  {"local": "sofia.martinez", "first_name": "Sofía", "last_name": "Martínez", "job_title": "Marketing Manager", "department": "Marketing", "phone_work": "+1 415 555 0103", "phone_mobile": "+1 415 555 0193", "photo": true},
+  {"local": "chen.wei", "first_name": "Chen", "last_name": "Wei", "job_title": "Software Engineer", "department": "Engineering"},
+  {"local": "amelia.clarke", "first_name": "Amelia", "last_name": "Clarke", "job_title": "Customer Support Lead", "department": "Support", "phone_work": "+1 415 555 0105", "photo": true},
+  {"local": "noah.fischer", "first_name": "Noah", "last_name": "Fischer"},
+  {"local": "maximiliana.wolfe", "first_name": "Maximiliana Alexandrina", "last_name": "Wolfeschlegelsteinhausen-Bergerdorff", "job_title": "Senior Vice President of Global Strategic Partnerships and Alliances", "department": "Corporate Development and International Operations", "phone_work": "+1 415 555 0107", "phone_mobile": "+1 415 555 0197"},
+  {"local": "olivia.brown", "first_name": "Olivia", "last_name": "Brown", "job_title": "Finance Director", "department": "Finance", "phone_work": "+1 415 555 0108", "suspended": true},
+  {"local": "liam.oconnor", "first_name": "Liam", "last_name": "O'Connor", "job_title": "Sales Development Representative", "department": "Sales", "phone_mobile": "+1 415 555 0199"},
+  {"local": "aisha.khan", "first_name": "Aisha", "last_name": "Khan", "job_title": "Product Designer", "department": "Design", "phone_work": "+1 415 555 0110", "photo": true},
+  {"local": "tom.baker", "first_name": "Tom", "last_name": "Baker", "job_title": "Contractor", "department": "Engineering", "has_mailbox": false}
+]

@@ -11,6 +11,7 @@
 {% block nav %}
 {% if organization and organization.is_connected %}
 <a href="/app" class="hover:text-slate-900">Dashboard</a>
+<a href="/app/employees" class="hover:text-slate-900">Employees</a>
 {% endif %}
 <span class="hidden text-slate-400 sm:inline">{{ user.email }}</span>
 <form method="post" action="/auth/logout">

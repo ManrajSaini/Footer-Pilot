@@ -1,0 +1,8 @@
+{# Summary line above the table. Reloads itself after a sync or an include/exclude change. #}
+<p id="employee-counts" class="mt-2 text-sm text-slate-600"
+   hx-get="/app/employees/counts" hx-swap="outerHTML"
+   hx-trigger="employees-changed from:body, employee-toggled from:body">
+  {{ counts.total }} in your directory · {{ counts.included }} will get the signature
+  {%- if counts.excluded %} · {{ counts.excluded }} excluded{% endif %}
+  {%- if counts.suspended %} · {{ counts.suspended }} suspended{% endif %}
+</p>

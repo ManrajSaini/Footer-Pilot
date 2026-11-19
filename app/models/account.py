@@ -21,6 +21,13 @@ class Plan(StrEnum):
     PAID = "paid"
 
 
+class SyncStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    OK = "ok"
+    FAILED = "failed"
+
+
 def _one_of(column: str, enum: type[StrEnum]) -> str:
     values = ", ".join(f"'{member.value}'" for member in enum)
     return f"{column} IN ({values})"
@@ -47,6 +54,9 @@ class Organization(Base):
     tracking_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     daily_enforce: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Directory sync. `sync_requested_at` lets the UI notice a sync that never finished
+    # (for example because the worker is not running).
+    sync_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_sync_status: Mapped[str | None] = mapped_column(String(20))
     last_sync_error: Mapped[str | None] = mapped_column(Text)

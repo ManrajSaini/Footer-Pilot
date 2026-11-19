@@ -1,0 +1,56 @@
+{# Sync state, shown on the employees page (view="employees") and in step 4 of the
+   wizard (view="setup"). While a sync is running it polls itself every two seconds.
+   No id on the root element: it is replaced whole on every poll. #}
+{% set polling = state == "running" %}
+<div data-sync-status
+     {% if polling %}hx-get="/app/employees/sync-status?view={{ view }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+
+  {% if state == "running" %}
+  <p class="flex items-center gap-2 text-sm text-slate-600" role="status">
+    <span class="size-2.5 animate-pulse rounded-full bg-brand-600"></span>
+    {% if view == "setup" %}Reading your directory from Google…{% else %}Syncing with Google…{% endif %}
+  </p>
+
+  {% elif state == "ok" %}
+    {% if view == "setup" %}
+    <p class="text-lg font-semibold text-slate-900">
+      {{ counts.total }} {{ "employee" if counts.total == 1 else "employees" }} found
+    </p>
+    <p class="mt-1 text-sm text-slate-600">
+      {{ counts.active }} active{% if counts.suspended %}, {{ counts.suspended }} suspended{% endif %}.
+      Names, job titles, phone numbers and photos are now in FooterPilot.
+    </p>
+    <a href="/app/employees" class="mt-4 inline-block rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+      Review employees
+    </a>
+    {% else %}
+    <p class="text-sm text-slate-600">
+      Last synced {{ organization.last_sync_at | timeago }}
+    </p>
+    {% endif %}
+
+  {% elif state == "failed" %}
+  <p class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">
+    {{ sync_error }}
+    {% if organization.last_sync_error == "not_authorized" %}
+    <a href="/app/setup" class="font-semibold underline">Reconnect</a>
+    {% endif %}
+  </p>
+
+  {% elif state == "stale" %}
+  <p class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
+    The last sync did not finish. Please try again.
+  </p>
+
+  {% else %}
+  <p class="text-sm text-slate-600">Your directory has not been synced yet.</p>
+  {% endif %}
+
+  {% if view == "setup" and state in ("failed", "stale", "never") %}
+  <button type="button" hx-post="/app/employees/sync" hx-vals='{"view": "setup"}'
+          hx-target="closest [data-sync-status]" hx-swap="outerHTML"
+          class="mt-4 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+    {{ "Start sync" if state == "never" else "Try again" }}
+  </button>
+  {% endif %}
+</div>

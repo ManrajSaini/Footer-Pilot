@@ -36,6 +36,7 @@ class Settings(BaseSettings):
 
     # Image storage
     storage_backend: Literal["r2", "local"] = "local"
+    media_root: str = "var/media"  # folder used by the local backend
     r2_account_id: str = ""
     r2_access_key_id: str = ""
     r2_secret_access_key: SecretStr = SecretStr("")
@@ -90,6 +91,21 @@ class Settings(BaseSettings):
             ]
             if missing:
                 raise ValueError("GOOGLE_MODE=real requires " + " and ".join(missing))
+
+        if self.storage_backend == "r2":
+            missing = [
+                name
+                for name, value in (
+                    ("R2_ACCOUNT_ID", self.r2_account_id),
+                    ("R2_ACCESS_KEY_ID", self.r2_access_key_id),
+                    ("R2_SECRET_ACCESS_KEY", self.r2_secret_access_key.get_secret_value()),
+                    ("R2_BUCKET", self.r2_bucket),
+                    ("R2_PUBLIC_BASE_URL", self.r2_public_base_url),
+                )
+                if not value
+            ]
+            if missing:
+                raise ValueError("STORAGE_BACKEND=r2 requires " + ", ".join(missing))
         return self
 
     @property

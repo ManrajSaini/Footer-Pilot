@@ -41,10 +41,16 @@ def web(args: argparse.Namespace) -> None:
 
 def worker(args: argparse.Namespace) -> None:
     from app.tasks import procrastinate_app
+    from app.tasks.context import build_context, set_context
 
     async def main() -> None:
-        async with procrastinate_app.open_async():
-            await procrastinate_app.run_worker_async(concurrency=args.concurrency)
+        context = build_context(get_settings())
+        set_context(context)
+        try:
+            async with procrastinate_app.open_async():
+                await procrastinate_app.run_worker_async(concurrency=args.concurrency)
+        finally:
+            await context.db.dispose()
 
     run(main())
 

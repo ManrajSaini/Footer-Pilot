@@ -11,8 +11,20 @@ from app.config import get_settings
 from app.db import Database
 from app.google import build_gateways
 from app.log import configure_logging
+from app.storage import build_storage
+from app.storage.local import LocalStorage
 from app.tasks import procrastinate_app
-from app.web import auth, dashboard, dev, generator, health, onboarding, public, ratelimit
+from app.web import (
+    auth,
+    dashboard,
+    dev,
+    employees,
+    generator,
+    health,
+    onboarding,
+    public,
+    ratelimit,
+)
 from app.web.csrf import csrf_protect
 from app.web.deps import register_access_handlers
 from app.web.errors import register_error_handlers
@@ -61,6 +73,10 @@ def create_app() -> FastAPI:
     )
 
     app.state.google = build_gateways(settings)
+    app.state.storage = build_storage(settings)
+    if isinstance(app.state.storage, LocalStorage):
+        # Local storage has no public address of its own, so the app serves the files.
+        app.mount("/media", StaticFiles(directory=app.state.storage.root), name="media")
     app.state.oauth_google = auth.build_google_oauth(settings)
 
     app.include_router(health.router)
@@ -69,6 +85,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(onboarding.router)
     app.include_router(dashboard.router)
+    app.include_router(employees.router)
     if settings.dev_login:  # refused by Settings when ENV=production
         app.include_router(dev.router)
     return app

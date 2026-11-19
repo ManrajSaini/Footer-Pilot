@@ -37,12 +37,47 @@ class AdminInfo:
     customer_id: str
 
 
-class DirectoryGateway(Protocol):
-    async def verify_admin(self, admin_email: str) -> AdminInfo:
-        """Confirm directory access works and `admin_email` is a super admin.
+@dataclass(frozen=True)
+class DirectoryUser:
+    """One person from the customer's directory, reduced to what signatures use."""
 
-        Raises NotAuthorizedError, NotAdminError or GoogleUnavailableError.
-        """
+    id: str  # Google's stable user id; survives renames and address changes
+    email: str
+    first_name: str = ""
+    last_name: str = ""
+    full_name: str = ""
+    job_title: str = ""
+    department: str = ""
+    phone_work: str = ""
+    phone_mobile: str = ""
+    suspended: bool = False
+    archived: bool = False
+    has_mailbox: bool = True
+    photo_etag: str | None = None  # changes when the photo changes; None means no photo
+
+
+@dataclass(frozen=True)
+class DirectoryPhoto:
+    data: bytes
+    mime_type: str = "image/jpeg"
+
+
+class DirectoryGateway(Protocol):
+    """Every method impersonates `admin_email`, the organisation's owner.
+
+    All raise NotAuthorizedError, NotAdminError or GoogleUnavailableError.
+    """
+
+    async def verify_admin(self, admin_email: str) -> AdminInfo:
+        """Confirm directory access works and `admin_email` is a super admin."""
+        ...
+
+    async def list_users(self, admin_email: str) -> list[DirectoryUser]:
+        """Everyone in the directory, including suspended users."""
+        ...
+
+    async def get_photo(self, admin_email: str, user_id: str) -> DirectoryPhoto | None:
+        """A user's profile photo, or None if they have not set one."""
         ...
 
 

@@ -14,6 +14,11 @@ PRODUCTION_OK = {
     "google_oauth_client_secret": "secret",
     "google_service_account_json": "e30=",
     "google_dwd_client_id": "123",
+    "r2_account_id": "a" * 32,
+    "r2_access_key_id": "key",
+    "r2_secret_access_key": "secret",
+    "r2_bucket": "bucket",
+    "r2_public_base_url": "https://assets.example.com",
 }
 
 
@@ -35,6 +40,9 @@ def test_production_accepts_safe_configuration():
         ({"google_oauth_client_secret": ""}, "GOOGLE_OAUTH_CLIENT_ID"),
         ({"google_service_account_json": ""}, "GOOGLE_SERVICE_ACCOUNT_JSON"),
         ({"google_dwd_client_id": ""}, "GOOGLE_DWD_CLIENT_ID"),
+        ({"r2_account_id": ""}, "R2_ACCOUNT_ID"),
+        ({"r2_secret_access_key": ""}, "R2_SECRET_ACCESS_KEY"),
+        ({"r2_public_base_url": ""}, "R2_PUBLIC_BASE_URL"),
     ],
 )
 def test_production_rejects_development_switches(override, expected):

@@ -20,7 +20,7 @@ async def connect(client: AsyncClient, user: User) -> None:
     """Sign in as `user` and complete verification."""
     headers = sign_in(client, user)
     response = await client.post("/app/setup/verify", headers={**headers, **HTMX})
-    assert response.headers.get("HX-Redirect") == "/app", response.text
+    assert response.headers.get("HX-Redirect") == "/app/setup/sync", response.text
 
 
 # --- Anonymous visitors ---------------------------------------------------------------
@@ -84,7 +84,8 @@ async def test_successful_verification_connects_the_organisation(
 
     response = await client.post("/app/setup/verify", headers={**headers, **HTMX})
     assert response.status_code == 200
-    assert response.headers["HX-Redirect"] == "/app"
+    # On to step 4, where the first directory sync is shown.
+    assert response.headers["HX-Redirect"] == "/app/setup/sync"
 
     organization = await load_org(db, user)
     assert organization.status == OrgStatus.CONNECTED
@@ -104,7 +105,7 @@ async def test_verification_without_htmx_redirects(client: AsyncClient, make_use
     headers = sign_in(client, await make_user("admin@acme.test"))
     response = await client.post("/app/setup/verify", headers=headers)
     assert response.status_code == 303
-    assert response.headers["location"] == "/app"
+    assert response.headers["location"] == "/app/setup/sync"
 
 
 @pytest.mark.parametrize(
@@ -165,7 +166,7 @@ async def test_a_failed_attempt_can_be_retried(client: AsyncClient, app: FastAPI
 
     app.state.google = working
     second = await client.post("/app/setup/verify", headers=headers)
-    assert second.headers["HX-Redirect"] == "/app"
+    assert second.headers["HX-Redirect"] == "/app/setup/sync"
 
 
 # --- Ownership ------------------------------------------------------------------------
