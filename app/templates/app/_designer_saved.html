@@ -1,0 +1,4 @@
+{# Response to a successful save: the new preview, cleared errors and the status badge. #}
+{% include "app/_designer_preview.html" %}
+{% include "app/_designer_errors.html" %}
+{% with oob = true %}{% include "app/_designer_status.html" %}{% endwith %}

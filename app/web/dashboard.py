@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.models import Organization, User
 from app.services.employees import count_employees
+from app.services.signatures import get_signature
 from app.web.deps import current_org, require_member
 from app.web.templating import templates
 
@@ -21,8 +22,9 @@ async def dashboard(
     session: AsyncSession = Depends(get_session),
 ) -> HTMLResponse:
     counts = await count_employees(session, organization.id)
+    signature = await get_signature(session, organization.id)
     return templates.TemplateResponse(
         request,
         "app/dashboard.html",
-        {"user": user, "organization": organization, "counts": counts},
+        {"user": user, "organization": organization, "counts": counts, "signature": signature},
     )

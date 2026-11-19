@@ -7,7 +7,7 @@
   <h1 class="text-3xl font-bold tracking-tight">{{ organization.name }}</h1>
   <p class="mt-2 text-slate-600">Signed in as {{ user.email }}</p>
 
-  <dl class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+  <dl class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
     <div class="rounded-xl border border-slate-200 bg-white p-6">
       <dt class="text-sm font-medium text-slate-500">Google Workspace</dt>
       <dd class="mt-2 flex items-center gap-2 text-lg font-semibold">
@@ -28,6 +28,19 @@
       <dd class="mt-1 text-sm text-slate-600">
         {{ counts.included }} will get the signature · last synced {{ organization.last_sync_at | timeago }}
       </dd>
+    </a>
+    <a href="/app/designer" class="rounded-xl border border-slate-200 bg-white p-6 hover:border-brand-600">
+      <dt class="text-sm font-medium text-slate-500">Signature</dt>
+      {% if signature is none %}
+      <dd class="mt-2 text-lg font-semibold">Not designed yet</dd>
+      <dd class="mt-1 text-sm text-slate-600">Choose a layout to start</dd>
+      {% elif signature.published_design is none %}
+      <dd class="mt-2 text-lg font-semibold">Draft</dd>
+      <dd class="mt-1 text-sm text-slate-600">Not applied to mailboxes yet</dd>
+      {% else %}
+      <dd class="mt-2 text-lg font-semibold">Live</dd>
+      <dd class="mt-1 text-sm text-slate-600">Applied {{ signature.published_at | timeago }}</dd>
+      {% endif %}
     </a>
     <div class="rounded-xl border border-slate-200 bg-white p-6">
       <dt class="text-sm font-medium text-slate-500">Plan</dt>

@@ -20,9 +20,14 @@
       {{ counts.active }} active{% if counts.suspended %}, {{ counts.suspended }} suspended{% endif %}.
       Names, job titles, phone numbers and photos are now in FooterPilot.
     </p>
-    <a href="/app/employees" class="mt-4 inline-block rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
-      Review employees
-    </a>
+    <div class="mt-4 flex flex-wrap items-center gap-4">
+      <a href="/app/designer" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+        Choose a signature design
+      </a>
+      <a href="/app/employees" class="text-sm font-semibold text-slate-600 underline hover:text-slate-900">
+        Review employees
+      </a>
+    </div>
     {% else %}
     <p class="text-sm text-slate-600">
       Last synced {{ organization.last_sync_at | timeago }}

@@ -1,25 +1,13 @@
-// Behaviour for the public signature generator: sizing the preview frame and copying
-// the signature. Loaded before Alpine so the component is registered when Alpine starts.
+// Behaviour for the public signature generator: copying the signature. Needs
+// preview.js. Loaded before Alpine so the component is registered when Alpine starts.
 document.addEventListener("alpine:init", () => {
   Alpine.data("signatureGenerator", () => ({
     copied: null, // "signature" | "source" | null, drives the button labels
     error: "",
 
     init() {
-      // Resize the preview whenever a frame finishes loading. `load` does not bubble,
-      // so listen in the capture phase; this also covers frames HTMX swaps in later.
-      this.$root.addEventListener(
-        "load",
-        (event) => {
-          if (event.target.matches("[data-signature-frame]")) this.fit(event.target);
-        },
-        true,
-      );
-      // The first preview may already have loaded before this ran.
-      const frame = this.frame();
-      if (frame && frame.contentDocument && frame.contentDocument.readyState === "complete") {
-        this.fit(frame);
-      }
+      // Keep the preview frame as tall as the signature (see preview.js).
+      FooterPilot.watchPreviewFrames(this.$root);
     },
 
     frame() {
@@ -29,12 +17,6 @@ document.addEventListener("alpine:init", () => {
     html() {
       const source = this.$root.querySelector("[data-signature-html]");
       return source ? source.value : "";
-    },
-
-    // Make the frame exactly as tall as the signature inside it.
-    fit(frame) {
-      const body = frame.contentDocument && frame.contentDocument.body;
-      if (body) frame.style.height = body.scrollHeight + "px";
     },
 
     failed() {

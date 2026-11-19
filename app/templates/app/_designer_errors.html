@@ -1,0 +1,12 @@
+{# Every error slot in the form, re-sent on each save (out-of-band) so that fixed fields
+   clear and broken ones are marked. Empty slots are hidden by the `empty:hidden` class,
+   so each <p> must have no whitespace inside when there is no message. #}
+{% for field in error_fields %}
+{% if field == "general" %}
+<div id="error-general" hx-swap-oob="true">
+  {%- if errors.get("general") %}<p class="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">{{ errors["general"] }}</p>{% endif -%}
+</div>
+{% else %}
+<p id="error-{{ field }}" hx-swap-oob="true" class="mt-1 text-xs font-medium text-red-700 empty:hidden" role="alert">{{ errors.get(field, "") }}</p>
+{% endif %}
+{% endfor %}

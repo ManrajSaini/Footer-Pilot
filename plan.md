@@ -258,6 +258,18 @@ Established in Phase 3:
 - Tables that can hold long values use `table-fixed` with column widths and `truncate`, so one long name cannot push columns out of view.
 - Additions to the data model in section 6.1: `employees.has_mailbox` and `organizations.sync_requested_at`.
 
+Established in Phase 4:
+
+- Rendering a signature for a person always goes through `build_org_context` and `employee_data` in `app/services/signatures.py`. Deployment (Phase 5) must use the same two functions, so the preview and the mailbox cannot drift apart.
+- Publishing means copying `draft_design` to `published_design` and setting `published_at`. Phase 5 does this when the admin applies the signature; `has_unpublished_changes` and "Discard changes" already work against it.
+- The designer form (`app/templates/app/designer.html`) is the pattern for autosaving forms: one `<form>` wraps every control, saves on `input` with a 300 ms delay, and the response swaps the preview plus out-of-band error slots (`_designer_errors.html`) and status (`_designer_status.html`). On a validation error the response sets `HX-Reswap: none`, so nothing is saved and the last good preview stays.
+- The draft changes only through `POST /app/designer/draft`. An upload just stores the file and fires `designer-changed`; the form then saves itself with the new asset id. Asset ids from the form are always checked against the organisation (`get_logo`).
+- HTMX details that matter inside that form: exclude file inputs from the form trigger (`input[target.type!='file']`), give buttons with their own request `hx-sync="this:replace"` and `hx-params="none"`, and remember that `hx-delete` sends parameters in the URL.
+- `app/static/js/preview.js` keeps any `<iframe data-signature-frame>` fitted to its content; load it on every page that previews a signature.
+- Uploaded images go through `normalise_logo` (PNG, JPEG or GIF, at most 2 MB, re-encoded, at most 400 px). Banners in Phase 6 should follow the same shape with their own size limit.
+- Storage keys are validated as text (`LocalStorage._path`), never by resolving paths on disk: resolving while other uploads create the same folders is unstable on Windows.
+- When checking the app by hand or by script, never start a second worker against the development database: workers share one job queue, so a fake-mode worker could process a real organisation's jobs. Use a separate database (`DATABASE_URL`), port and `MEDIA_ROOT`.
+
 ## 8. Phase 0: Foundations
 
 **Status: complete (2026-11-19).** Commands and setup are in `README.md`.
@@ -361,6 +373,8 @@ Done when:
 - Editing a title in the Google Admin console and pressing "Sync now" updates the row.
 
 ## 12. Phase 4: Designer and live preview
+
+**Status: complete (2026-11-19).** Verified in a browser in fake mode: preview updates in under a second, "Preview as" shows each employee's data, logo upload and removal work. Additions beyond the task list: placeholder logo and photo on the template picker (so the layouts look different before a logo exists), and the free plan's "Powered by" line already shows in the preview.
 
 **Goal:** the admin designs the company signature and previews it for any employee (idea.md 5.4, 5.5).
 

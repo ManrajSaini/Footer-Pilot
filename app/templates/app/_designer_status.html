@@ -1,0 +1,16 @@
+{# Whether the draft differs from what is live. Sent out-of-band after each save. #}
+<div id="designer-status" {% if oob %}hx-swap-oob="true"{% endif %} class="flex flex-wrap items-center gap-2">
+  {% if not is_published %}
+  <span class="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-700">Draft · not applied yet</span>
+  {% elif has_changes %}
+  <span class="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">Unpublished changes</span>
+  <button type="button" hx-post="/app/designer/discard" hx-params="none" hx-sync="this:replace"
+          hx-confirm="Discard your changes and go back to the signature that is live?"
+          class="text-xs font-semibold text-slate-600 underline hover:text-slate-900">
+    Discard changes
+  </button>
+  {% else %}
+  <span class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">Live · no changes</span>
+  {% endif %}
+  {% if saved %}<span class="text-xs text-slate-500">Draft saved</span>{% endif %}
+</div>

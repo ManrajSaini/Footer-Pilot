@@ -1,0 +1,179 @@
+{% extends "app/_layout.html" %}
+
+{% block title %}Signature designer | FooterPilot{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/preview.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/designer.js') }}" defer></script>
+{% endblock %}
+
+{% set input_class = "mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-xs placeholder:text-slate-400 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" %}
+
+{# An error slot. Kept on one line: `empty:hidden` only hides it when truly empty. #}
+{% macro error_slot(name) %}<p id="error-{{ name }}" class="mt-1 text-xs font-medium text-red-700 empty:hidden" role="alert">{{ errors.get(name, "") }}</p>{% endmacro %}
+
+{% macro field(name, label, value, type="text", placeholder="", hint="") %}
+<label class="block">
+  <span class="text-sm font-medium text-slate-700">{{ label }}</span>
+  <input type="{{ type }}" name="{{ name }}" value="{{ value or '' }}" placeholder="{{ placeholder }}"
+         autocomplete="off" class="{{ input_class }}">
+  {% if hint %}<span class="mt-1 block text-xs text-slate-500">{{ hint }}</span>{% endif %}
+  {{ error_slot(name) }}
+</label>
+{% endmacro %}
+
+{% macro group(title, hint="") %}
+<fieldset class="rounded-xl border border-slate-200 bg-white p-5">
+  <legend class="px-1 text-sm font-semibold text-slate-900">{{ title }}</legend>
+  {% if hint %}<p class="mb-4 text-xs text-slate-500">{{ hint }}</p>{% endif %}
+  <div class="grid gap-4 sm:grid-cols-2">{{ caller() }}</div>
+</fieldset>
+{% endmacro %}
+
+{% block content %}
+<div class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+  <h1 class="text-3xl font-bold tracking-tight">Signature designer</h1>
+  <p class="mt-2 max-w-2xl text-sm text-slate-600">
+    Changes are saved as a draft as you make them and shown in the preview. Nothing is
+    sent to anyone's mailbox from this page.
+  </p>
+
+  {# One form wraps both columns, so every control (including "Preview as") is part of
+     each save. The file input is excluded: it uploads on its own. #}
+  <form id="designer-form" x-data="signatureDesigner" novalidate @submit.prevent
+        hx-post="/app/designer/draft"
+        hx-trigger="input[target.type!='file'] delay:300ms, designer-changed from:body"
+        hx-target="#designer-preview" hx-swap="innerHTML" hx-sync="this:replace"
+        class="mt-8 grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+
+    <div class="space-y-5">
+      <fieldset class="rounded-xl border border-slate-200 bg-white p-5">
+        <legend class="px-1 text-sm font-semibold text-slate-900">Layout</legend>
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {% for value, label in layouts.items() %}
+          <label class="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-center text-sm font-medium text-slate-700 has-checked:border-brand-600 has-checked:bg-brand-50 has-checked:text-brand-700 has-focus-visible:ring-2 has-focus-visible:ring-brand-100">
+            <input type="radio" name="template" value="{{ value }}" class="sr-only" {% if value == design.template %}checked{% endif %}>
+            {{ label }}
+          </label>
+          {% endfor %}
+        </div>
+        {{ error_slot("template") }}
+      </fieldset>
+
+      {% call group("Brand") %}
+        <label class="block">
+          <span class="text-sm font-medium text-slate-700">Accent colour</span>
+          <input type="color" name="primary_color" value="{{ design.brand.primary_color }}"
+                 class="mt-1 block h-10 w-full cursor-pointer rounded-lg border border-slate-300 bg-white p-1">
+          {{ error_slot("primary_color") }}
+        </label>
+        <label class="block">
+          <span class="text-sm font-medium text-slate-700">Text colour</span>
+          <input type="color" name="text_color" value="{{ design.brand.text_color }}"
+                 class="mt-1 block h-10 w-full cursor-pointer rounded-lg border border-slate-300 bg-white p-1">
+          {{ error_slot("text_color") }}
+        </label>
+        <label class="block">
+          <span class="text-sm font-medium text-slate-700">Font</span>
+          <select name="font_family" class="{{ input_class }}">
+            {% for font in fonts %}
+            <option value="{{ font }}" {% if font == design.brand.font_family %}selected{% endif %}>{{ font }}</option>
+            {% endfor %}
+          </select>
+          {{ error_slot("font_family") }}
+        </label>
+        <label class="block">
+          <span class="text-sm font-medium text-slate-700">Text size</span>
+          <select name="font_size" class="{{ input_class }}">
+            {% for value, label in font_sizes.items() %}
+            <option value="{{ value }}" {% if value == design.brand.font_size %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {{ error_slot("font_size") }}
+        </label>
+      {% endcall %}
+
+      {% call group("Logo") %}
+        {% include "app/_designer_logo.html" %}
+        <div class="sm:col-span-2">{{ error_slot("logo") }}</div>
+        <label class="block">
+          <span class="text-sm font-medium text-slate-700">Logo width</span>
+          <input type="range" name="logo_width" min="{{ logo_min }}" max="{{ logo_max }}" step="10"
+                 value="{{ design.logo.width_px }}" class="mt-3 block w-full accent-brand-600">
+          {{ error_slot("logo_width") }}
+        </label>
+        {{ field("logo_link_url", "Logo links to", design.logo.link_url, type="url", placeholder="https://",
+                 hint="Optional. Leave empty to use your website.") }}
+      {% endcall %}
+
+      {% call group("Employee details", "Filled in for each person from your Google directory. Untick anything you want to leave out for everyone.") %}
+        {% for name, label in toggles.items() %}
+        <label class="flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" name="{{ name }}" value="1" class="size-4 rounded border-slate-300 accent-brand-600"
+                 {% if design.fields[name] %}checked{% endif %}>
+          {{ label }}
+        </label>
+        {% endfor %}
+      {% endcall %}
+
+      {% call group("Company details", "The same for everyone.") %}
+        {{ field("company_name", "Company name", design.company.name) }}
+        {{ field("company_website_url", "Website", design.company.website_url, type="url", placeholder="https://") }}
+        {{ field("company_phone", "Main phone", design.company.phone, type="tel") }}
+        {{ field("company_tagline", "Tagline", design.company.tagline) }}
+        <div class="sm:col-span-2">{{ field("company_address", "Address", design.company.address) }}</div>
+      {% endcall %}
+
+      {% call group("Social links") %}
+        {% for key, label in social_networks.items() %}
+          {{ field("social_" ~ key, label, socials.get(key), type="url", placeholder="https://") }}
+        {% endfor %}
+      {% endcall %}
+    </div>
+
+    <div class="self-start lg:sticky lg:top-6">
+      <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-sm font-semibold text-slate-900">Preview</h2>
+          {% include "app/_designer_status.html" %}
+        </div>
+
+        <div class="mt-4 flex items-end gap-2">
+          <label class="block min-w-0 flex-1">
+            <span class="text-sm font-medium text-slate-700">Preview as</span>
+            <select name="preview_as" x-ref="previewAs" class="{{ input_class }}">
+              <optgroup label="Employees">
+                {% for choice in preview_choices if not choice.value.startswith("sample:") %}
+                <option value="{{ choice.value }}" {% if choice.value == preview_as %}selected{% endif %}>{{ choice.label }}</option>
+                {% endfor %}
+              </optgroup>
+              <optgroup label="Test cases">
+                {% for choice in preview_choices if choice.value.startswith("sample:") %}
+                <option value="{{ choice.value }}" {% if choice.value == preview_as %}selected{% endif %}>{{ choice.label }}</option>
+                {% endfor %}
+              </optgroup>
+            </select>
+          </label>
+          <button type="button" @click="step(-1)" aria-label="Previous person"
+                  class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">&#8249;</button>
+          <button type="button" @click="step(1)" aria-label="Next person"
+                  class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">&#8250;</button>
+        </div>
+
+        <div id="designer-preview" class="mt-4">
+          {% include "app/_designer_preview.html" %}
+        </div>
+        <div id="error-general">
+          {%- if errors.get("general") %}<p class="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">{{ errors["general"] }}</p>{% endif -%}
+        </div>
+
+        {% if organization.plan == "free" %}
+        <p class="mt-4 text-xs text-slate-500">
+          Signatures on the free plan include a small "Powered by FooterPilot" link.
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -34,6 +34,7 @@ from app.signatures.schema import (
     text,
 )
 from app.web import ratelimit
+from app.web.forms import error_text
 from app.web.templating import templates
 
 router = APIRouter()
@@ -139,13 +140,7 @@ def _error_messages(error: ValidationError) -> list[str]:
     messages = []
     for detail in error.errors():
         field = str(detail["loc"][0]) if detail["loc"] else ""
-        if detail["type"] == "value_error":
-            message = detail["msg"].removeprefix("Value error, ")
-        elif detail["type"] in ("string_too_long", "too_long"):
-            message = f"Use at most {detail['ctx']['max_length']} characters"
-        else:
-            message = "This value is not valid"
-        messages.append(f"{FIELD_LABELS.get(field, field)}: {message}")
+        messages.append(f"{FIELD_LABELS.get(field, field)}: {error_text(detail)}")
     return messages
 
 

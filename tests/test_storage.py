@@ -1,5 +1,6 @@
 """Storage backends, image normalisation and the time-ago filter. No network."""
 
+import asyncio
 import io
 from datetime import UTC, datetime, timedelta
 
@@ -36,12 +37,36 @@ async def test_local_storage_writes_the_file_and_returns_its_url(tmp_path):
     assert (tmp_path / "media" / "orgs" / "1" / "photos" / "abc.jpg").read_bytes() == b"jpeg-bytes"
 
 
-@pytest.mark.parametrize("key", ["../outside.txt", "orgs/../../outside.txt", "/etc/passwd"])
+@pytest.mark.parametrize(
+    "key",
+    [
+        "../outside.txt",
+        "orgs/../../outside.txt",
+        "/etc/passwd",
+        "orgs//photo.jpg",
+        "./photo.jpg",
+        "orgs\\..\\..\\outside.txt",
+        "C:/Windows/outside.txt",
+        "",
+    ],
+)
 async def test_local_storage_refuses_keys_outside_its_folder(tmp_path, key):
     storage = LocalStorage(tmp_path / "media", "http://testserver/media")
-    with pytest.raises(ValueError, match="escapes"):
+    with pytest.raises(ValueError, match="invalid storage key"):
         await storage.put(key, b"x", "text/plain")
     assert not (tmp_path / "outside.txt").exists()
+    assert list((tmp_path / "media").iterdir()) == []
+
+
+async def test_local_storage_handles_many_uploads_into_a_new_folder_at_once(tmp_path):
+    """Regression: concurrent uploads creating the same folders once failed on Windows."""
+    storage = LocalStorage(tmp_path / "media", "http://testserver/media")
+    for attempt in range(5):
+        keys = [f"orgs/{attempt}/photos/{n}.jpg" for n in range(20)]
+        urls = await asyncio.gather(*(storage.put(key, key.encode(), "image/jpeg") for key in keys))
+        assert urls == [f"http://testserver/media/{key}" for key in keys]
+        for key in keys:
+            assert (tmp_path / "media" / key).read_bytes() == key.encode()
 
 
 # --- R2 -------------------------------------------------------------------------------

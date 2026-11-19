@@ -17,6 +17,7 @@ from app.tasks import procrastinate_app
 from app.web import (
     auth,
     dashboard,
+    designer,
     dev,
     employees,
     generator,
@@ -86,6 +87,7 @@ def create_app() -> FastAPI:
     app.include_router(onboarding.router)
     app.include_router(dashboard.router)
     app.include_router(employees.router)
+    app.include_router(designer.router)
     if settings.dev_login:  # refused by Settings when ENV=production
         app.include_router(dev.router)
     return app
