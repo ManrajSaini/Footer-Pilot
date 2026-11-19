@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Google Workspace account needed | FooterPilot{% endblock %}
+
+{% block meta %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-6xl px-4 py-24 sm:px-6">
+  <div class="max-w-xl">
+    <h1 class="text-3xl font-bold tracking-tight">A Google Workspace account is needed</h1>
+    <p class="mt-4 text-slate-600">
+      You signed in with a personal Google account. FooterPilot manages signatures for a
+      whole company, so it needs the Google Workspace account you use to administer your
+      company's domain (for example you@your-company.com).
+    </p>
+    <div class="mt-8 flex flex-wrap gap-3">
+      <a href="/auth/google/login" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+        Try another account
+      </a>
+      <a href="/email-signature-generator" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+        Make a signature for just me
+      </a>
+    </div>
+  </div>
+</section>
+{% endblock %}

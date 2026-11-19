@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # Public URLs. The last three fall back to APP_BASE_URL when left empty.
-    app_base_url: str = "http://localhost:8000"
+    app_base_url: str = "http://127.0.0.1:8000"
     marketing_base_url: str = ""
     tracking_base_url: str = ""
     asset_base_url: str = ""
@@ -71,9 +71,32 @@ class Settings(BaseSettings):
                 problems.append("STORAGE_BACKEND must be 'r2'")
             if self.secret_key.get_secret_value() == DEV_SECRET_KEY:
                 problems.append("SECRET_KEY must be set")
+            if not self.google_sign_in_configured:
+                problems.append("GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET must be set")
             if problems:
                 raise ValueError("Unsafe production configuration: " + "; ".join(problems))
+
+        if self.google_mode == "real":
+            missing = [
+                name
+                for name, value in (
+                    (
+                        "GOOGLE_SERVICE_ACCOUNT_JSON",
+                        self.google_service_account_json.get_secret_value(),
+                    ),
+                    ("GOOGLE_DWD_CLIENT_ID", self.google_dwd_client_id),
+                )
+                if not value
+            ]
+            if missing:
+                raise ValueError("GOOGLE_MODE=real requires " + " and ".join(missing))
         return self
+
+    @property
+    def google_sign_in_configured(self) -> bool:
+        return bool(
+            self.google_oauth_client_id and self.google_oauth_client_secret.get_secret_value()
+        )
 
     @property
     def is_production(self) -> bool:

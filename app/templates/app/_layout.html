@@ -1,0 +1,20 @@
+{# Layout for signed-in pages. Sends the CSRF token with every HTMX request. #}
+{% extends "base.html" %}
+
+{% block meta %}
+<meta name="robots" content="noindex">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}
+
+{% block body_attrs %}hx-headers='{"X-CSRF-Token": "{{ csrf_token() }}"}'{% endblock %}
+
+{% block nav %}
+{% if organization and organization.is_connected %}
+<a href="/app" class="hover:text-slate-900">Dashboard</a>
+{% endif %}
+<span class="hidden text-slate-400 sm:inline">{{ user.email }}</span>
+<form method="post" action="/auth/logout">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:bg-slate-50">Sign out</button>
+</form>
+{% endblock %}

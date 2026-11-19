@@ -1,0 +1,31 @@
+{% extends "app/_layout.html" %}
+
+{% block title %}Dashboard | FooterPilot{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+  <h1 class="text-3xl font-bold tracking-tight">{{ organization.name }}</h1>
+  <p class="mt-2 text-slate-600">Signed in as {{ user.email }}</p>
+
+  <dl class="mt-8 grid gap-6 sm:grid-cols-3">
+    <div class="rounded-xl border border-slate-200 bg-white p-6">
+      <dt class="text-sm font-medium text-slate-500">Google Workspace</dt>
+      <dd class="mt-2 flex items-center gap-2 text-lg font-semibold">
+        <span class="size-2.5 rounded-full bg-emerald-500"></span> Connected
+      </dd>
+      <dd class="mt-1 text-sm text-slate-600">{{ organization.domain }}</dd>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-6">
+      <dt class="text-sm font-medium text-slate-500">Connected since</dt>
+      <dd class="mt-2 text-lg font-semibold">
+        {{ organization.connected_at.strftime("%d %b %Y") if organization.connected_at else "Unknown" }}
+      </dd>
+      <dd class="mt-1 text-sm text-slate-600">Customer ID {{ organization.google_customer_id or "unknown" }}</dd>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-6">
+      <dt class="text-sm font-medium text-slate-500">Plan</dt>
+      <dd class="mt-2 text-lg font-semibold capitalize">{{ organization.plan }}</dd>
+    </div>
+  </dl>
+</div>
+{% endblock %}

@@ -19,16 +19,16 @@ async def home(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, "public/home.html")
 
 
-@router.get("/signup", response_class=HTMLResponse)
-async def signup(request: Request) -> HTMLResponse:
-    # Placeholder: Phase 2 replaces this with Google sign-in.
-    return templates.TemplateResponse(request, "public/signup.html")
-
-
 @router.get("/robots.txt", include_in_schema=False)
 async def robots() -> PlainTextResponse:
     base = get_settings().marketing_base_url
-    lines = ["User-agent: *", "Allow: /", "Disallow: /generator/", f"Sitemap: {base}/sitemap.xml"]
+    private = ("/app/", "/auth/", "/dev/", "/generator/")
+    lines = [
+        "User-agent: *",
+        "Allow: /",
+        *(f"Disallow: {path}" for path in private),
+        f"Sitemap: {base}/sitemap.xml",
+    ]
     return PlainTextResponse("\n".join(lines) + "\n")
 
 

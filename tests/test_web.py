@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from httpx import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient
 
 from app.config import get_settings
 from app.main import create_app
@@ -67,17 +67,12 @@ async def test_home_links_to_generator_and_signup(client: AsyncClient):
     assert '<link rel="canonical" href="http://testserver/">' in response.text
 
 
-async def test_signup_placeholder(client: AsyncClient):
-    response = await client.get("/signup")
-    assert response.status_code == 200
-    assert 'content="noindex"' in response.text
-
-
 async def test_robots_txt(client: AsyncClient):
     response = await client.get("/robots.txt")
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/plain")
-    assert "Disallow: /generator/" in response.text
+    for private in ("/app/", "/auth/", "/dev/", "/generator/"):
+        assert f"Disallow: {private}" in response.text
     assert "Sitemap: http://testserver/sitemap.xml" in response.text
 
 

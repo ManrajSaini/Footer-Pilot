@@ -1,6 +1,6 @@
 import pytest
 from fastapi import FastAPI, Request
-from httpx import AsyncClient
+from httpx2 import AsyncClient
 
 from app.web.csrf import get_csrf_token
 

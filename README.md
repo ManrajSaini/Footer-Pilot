@@ -32,6 +32,22 @@ uv run python scripts/tailwind.py build   # build app/static/css/app.css
 
 The health check is at `/healthz` (returns 503 when the database is unreachable).
 
+## Signing in during development
+
+Open the app at the address in `APP_BASE_URL` (default `http://127.0.0.1:8000`), not `localhost`: the session cookie and Google's redirect are tied to that exact host.
+
+**Without Google (fake mode).** Set `GOOGLE_MODE=fake` and `DEV_LOGIN=true` in `.env`, then open `/dev/login`. The part of the address after `@` becomes the company. The part before `@` decides how the connection check behaves:
+
+| Address starts with | Behaviour |
+|---|---|
+| `nodelegation` | Delegation has not been added in the Admin console |
+| `nogmail` | Delegation is missing the Gmail scope |
+| `notadmin` | The signed-in user is not a Workspace admin |
+| `outage` | Google is unreachable |
+| anything else | Everything works |
+
+**With real Google.** Set `GOOGLE_MODE=real` and fill in `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_SERVICE_ACCOUNT_JSON` and `GOOGLE_DWD_CLIENT_ID`. The OAuth client's authorised redirect URI must be `{APP_BASE_URL}/auth/google/callback`. While the Google app is in Testing mode, each person who signs in must be listed as a test user. Then sign in at `/signup` with a Workspace super admin and follow the wizard.
+
 ## Notes
 
 - **Tests** use the `footerpilot_test` database from docker-compose and an in-memory job queue. They never call a real external service. Postgres must be running.
@@ -64,7 +80,9 @@ app/
   config.py      settings from environment variables
   db.py          engine and session dependency
   models/        SQLAlchemy models
-  web/           routers, CSRF, rate limit, error pages, template setup
+  web/           routers, access rules, CSRF, rate limit, error pages, template setup
+  services/      business logic (sign-in, connecting a domain)
+  google/        gateways to Google: interfaces, real and fake implementations
   signatures/    design schema, renderer and email-safe templates
   tasks/         background jobs (Procrastinate)
   templates/     Jinja pages

@@ -2,7 +2,7 @@ import html as html_module
 
 import pytest
 from fastapi import FastAPI
-from httpx import AsyncClient
+from httpx2 import AsyncClient
 
 from app.web.generator import PREVIEW_PATH
 from app.web.ratelimit import RateLimiter

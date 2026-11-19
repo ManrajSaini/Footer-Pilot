@@ -10,6 +10,10 @@ PRODUCTION_OK = {
     "storage_backend": "r2",
     "secret_key": "a-real-secret",
     "app_base_url": "https://app.example.com",
+    "google_oauth_client_id": "id.apps.googleusercontent.com",
+    "google_oauth_client_secret": "secret",
+    "google_service_account_json": "e30=",
+    "google_dwd_client_id": "123",
 }
 
 
@@ -27,6 +31,10 @@ def test_production_accepts_safe_configuration():
         ({"google_mode": "fake"}, "GOOGLE_MODE"),
         ({"dev_login": True}, "DEV_LOGIN"),
         ({"storage_backend": "local"}, "STORAGE_BACKEND"),
+        ({"google_oauth_client_id": ""}, "GOOGLE_OAUTH_CLIENT_ID"),
+        ({"google_oauth_client_secret": ""}, "GOOGLE_OAUTH_CLIENT_ID"),
+        ({"google_service_account_json": ""}, "GOOGLE_SERVICE_ACCOUNT_JSON"),
+        ({"google_dwd_client_id": ""}, "GOOGLE_DWD_CLIENT_ID"),
     ],
 )
 def test_production_rejects_development_switches(override, expected):
