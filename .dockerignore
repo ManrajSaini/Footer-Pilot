@@ -1,0 +1,15 @@
+.git
+.venv
+.tools
+node_modules
+var
+tests
+docker
+.env
+.env.*
+!.env.example
+**/__pycache__
+.pytest_cache
+.ruff_cache
+*.md
+app/static/css/app.css

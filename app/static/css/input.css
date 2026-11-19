@@ -1,0 +1,15 @@
+/* Tailwind source file. Build with: python scripts/tailwind.py build (output: app.css) */
+@import "tailwindcss" source(none);
+@source "../../templates";
+
+@theme {
+  --color-brand-50: oklch(0.97 0.014 264);
+  --color-brand-100: oklch(0.93 0.032 264);
+  --color-brand-600: oklch(0.51 0.2 268);
+  --color-brand-700: oklch(0.45 0.19 268);
+}
+
+/* Hide Alpine-controlled elements until Alpine has initialised. */
+[x-cloak] {
+  display: none !important;
+}
