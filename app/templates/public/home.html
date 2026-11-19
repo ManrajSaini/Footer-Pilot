@@ -3,6 +3,7 @@
 {% block title %}FooterPilot: one email signature for your whole company{% endblock %}
 
 {% block meta %}
+<link rel="canonical" href="{{ marketing_base_url }}/">
 <meta name="description" content="Design one professional email signature and apply it to every employee's Gmail automatically, with banners and click tracking built in.">
 {% endblock %}
 
@@ -18,10 +19,14 @@
       changes update on their own. Add a clickable banner to promote your next webinar
       or offer and see how many people click.
     </p>
-    <p class="mt-10 inline-flex items-center gap-2 rounded-full bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700">
-      <span class="size-2 rounded-full bg-brand-600"></span>
-      Launching soon
-    </p>
+    <div class="mt-10 flex flex-wrap gap-3">
+      <a href="/signup" class="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
+        Set it up for your company
+      </a>
+      <a href="/email-signature-generator" class="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+        Try the free signature generator
+      </a>
+    </div>
   </div>
 
   <dl class="mt-16 grid gap-6 sm:grid-cols-3">

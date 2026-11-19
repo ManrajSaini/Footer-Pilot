@@ -39,6 +39,8 @@ The health check is at `/healthz` (returns 503 when the database is unreachable)
 - **Windows:** always start the app through `python -m app.cli`. It selects an event loop that the Postgres driver supports; plain `uvicorn app.main:create_app` does not.
 - **CSS:** `app/static/css/app.css` is generated and not committed. The build script downloads the Tailwind standalone CLI into `.tools/`. If that download is blocked and Node is installed, it installs the same Tailwind version from npm instead.
 - **Vendored scripts:** HTMX 2.0.11 and Alpine.js 3.17.5 live in `app/static/vendor/`. To upgrade, replace the files and update the two `<script>` tags in `app/templates/base.html`.
+- **Signature templates:** the email-safe HTML templates are in `app/signatures/templates/`. Tests pin their exact output in `tests/signatures/golden/`; after an intentional change run `UPDATE_GOLDEN=1 uv run pytest tests/signatures/test_render.py` and review the diff.
+- **Social icons:** signatures link to `{ASSET_BASE_URL}/static/social/<network>.png`. On a local machine that URL is not reachable from Gmail, so icons appear broken when a locally generated signature is pasted into a real mailbox. See `app/static/social/README.md` for where the icons come from.
 - **Upgrading Procrastinate:** `migrate` installs its schema only once. When bumping the Procrastinate version, apply the SQL migration scripts listed in its release notes.
 - **Production settings:** with `ENV=production` the app refuses to start if `GOOGLE_MODE=fake`, `DEV_LOGIN=true`, `STORAGE_BACKEND=local` or `SECRET_KEY` is unset.
 
@@ -62,7 +64,8 @@ app/
   config.py      settings from environment variables
   db.py          engine and session dependency
   models/        SQLAlchemy models
-  web/           routers, CSRF, error pages, template setup
+  web/           routers, CSRF, rate limit, error pages, template setup
+  signatures/    design schema, renderer and email-safe templates
   tasks/         background jobs (Procrastinate)
   templates/     Jinja pages
   static/        CSS, vendored JS

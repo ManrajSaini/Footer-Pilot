@@ -5,8 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}FooterPilot{% endblock %}</title>
   {% block meta %}{% endblock %}
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', path='favicon.svg') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
   <script src="{{ url_for('static', path='vendor/htmx-2.0.11.min.js') }}" defer></script>
+  {# Page scripts go before Alpine, so their components are registered when it starts. #}
+  {% block scripts %}{% endblock %}
   <script src="{{ url_for('static', path='vendor/alpine-3.17.5.min.js') }}" defer></script>
   {% block head %}{% endblock %}
 </head>
@@ -18,7 +21,10 @@
         FooterPilot
       </a>
       <nav class="flex items-center gap-6 text-sm font-medium text-slate-600">
-        {% block nav %}{% endblock %}
+        {% block nav %}
+        <a href="/email-signature-generator" class="hover:text-slate-900">Free generator</a>
+        <a href="/signup" class="rounded-lg bg-brand-600 px-3 py-1.5 text-white hover:bg-brand-700">For teams</a>
+        {% endblock %}
       </nav>
     </div>
   </header>

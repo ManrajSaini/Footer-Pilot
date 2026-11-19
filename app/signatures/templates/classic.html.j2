@@ -1,0 +1,14 @@
+{# Classic: name and role, a divider, contact lines, then the logo underneath. #}
+{% extends "_base.html.j2" %}
+{% import "_macros.html.j2" as m %}
+{% block main %}
+{% if v.has_identity %}
+<tr><td style="{{ m.text_style(s) }}{% if v.contact_lines %};padding-bottom:8px{% endif %}">{{ m.identity(v, s) }}</td></tr>
+{% endif %}
+{% if v.contact_lines %}
+<tr><td style="{{ m.text_style(s) }}{% if v.has_identity %};border-top:2px solid {{ s.primary }};padding-top:8px{% endif %}">{{ m.contacts(v, s) }}</td></tr>
+{% endif %}
+{% if v.logo %}
+<tr><td{% if v.has_identity or v.contact_lines %} style="padding-top:10px"{% endif %}>{{ m.logo(v) }}</td></tr>
+{% endif %}
+{% endblock %}

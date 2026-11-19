@@ -11,7 +11,7 @@ from app.config import get_settings
 from app.db import Database
 from app.log import configure_logging
 from app.tasks import procrastinate_app
-from app.web import health, public
+from app.web import generator, health, public, ratelimit
 from app.web.csrf import csrf_protect
 from app.web.errors import register_error_handlers
 from app.web.templating import STATIC_DIR
@@ -53,6 +53,11 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     register_error_handlers(app)
 
+    app.state.generator_limiter = ratelimit.RateLimiter(
+        generator.PREVIEW_RATE_LIMIT, generator.PREVIEW_RATE_WINDOW
+    )
+
     app.include_router(health.router)
     app.include_router(public.router)
+    app.include_router(generator.router)
     return app

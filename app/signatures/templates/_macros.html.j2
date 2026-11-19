@@ -1,0 +1,45 @@
+{#
+  Shared building blocks. Rules for everything in this folder:
+  - tables and inline styles only (no classes, <style>, flexbox or web fonts)
+  - never leave whitespace between text and a tag; the renderer strips whitespace
+    between tags, and stray spaces next to &nbsp; show up as double gaps
+  - an empty value must remove its element entirely
+#}
+{% macro text_style(s) -%}
+font-family:{{ s.font }};font-size:{{ s.size }}px;line-height:1.45;color:{{ s.text }}
+{%- endmacro %}
+
+{% macro sep(s) -%}
+<span style="color:{{ s.muted }}">&nbsp;|&nbsp;</span>
+{%- endmacro %}
+
+{% macro item(i, s) -%}
+{% if i.label %}<span style="color:{{ s.primary }};font-weight:bold">{{ i.label }}</span>&nbsp;{% endif %}{% if i.href %}<a href="{{ i.href }}" style="color:{{ s.text }};text-decoration:none">{{ i.text }}</a>{% else %}{{ i.text }}{% endif %}
+{%- endmacro %}
+
+{% macro identity(v, s) %}
+{% if v.name %}<div style="font-size:{{ s.name_size }}px;font-weight:bold;color:{{ s.primary }}">{{ v.name }}</div>{% endif %}
+{% if v.role %}<div>{{ v.role }}</div>{% endif %}
+{% if v.company %}<div style="font-weight:bold">{{ v.company }}</div>{% endif %}
+{% if v.tagline %}<div style="color:{{ s.muted }}">{{ v.tagline }}</div>{% endif %}
+{% endmacro %}
+
+{% macro contacts(v, s) %}
+{% for line in v.contact_lines %}
+<div>{% for i in line %}{% if not loop.first %}{{ sep(s) }}{% endif %}{{ item(i, s) }}{% endfor %}</div>
+{% endfor %}
+{% endmacro %}
+
+{# Identity, then contact lines with a small gap between the two groups. #}
+{% macro details(v, s) %}
+{{ identity(v, s) }}
+{% if v.contact_lines %}<div{% if v.has_identity %} style="padding-top:6px"{% endif %}>{{ contacts(v, s) }}</div>{% endif %}
+{% endmacro %}
+
+{% macro logo(v) -%}
+{% if v.logo.href %}<a href="{{ v.logo.href }}" style="text-decoration:none">{% endif %}<img src="{{ v.logo.url }}" width="{{ v.logo.width }}" alt="{{ v.logo.alt }}" style="display:block;border:0">{% if v.logo.href %}</a>{% endif %}
+{%- endmacro %}
+
+{% macro photo(v, s) -%}
+<img src="{{ v.photo_url }}" width="{{ s.photo }}" height="{{ s.photo }}" alt="{{ v.name }}" style="display:block;border:0;border-radius:50%">
+{%- endmacro %}

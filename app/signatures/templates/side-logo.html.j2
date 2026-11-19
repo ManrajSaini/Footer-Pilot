@@ -1,0 +1,16 @@
+{# Side logo: logo on the left, a vertical divider, details on the right. #}
+{% extends "_base.html.j2" %}
+{% import "_macros.html.j2" as m %}
+{% block main %}
+{% set has_text = v.has_identity or v.contact_lines %}
+{% if has_text or v.logo %}
+<tr><td><table cellpadding="0" cellspacing="0" border="0"><tr>
+{% if v.logo %}
+<td style="vertical-align:middle{% if has_text %};padding-right:14px{% endif %}">{{ m.logo(v) }}</td>
+{% endif %}
+{% if has_text %}
+<td style="{{ m.text_style(s) }};vertical-align:middle{% if v.logo %};border-left:2px solid {{ s.primary }};padding-left:14px{% endif %}">{{ m.details(v, s) }}</td>
+{% endif %}
+</tr></table></td></tr>
+{% endif %}
+{% endblock %}

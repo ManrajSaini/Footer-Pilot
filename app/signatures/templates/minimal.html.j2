@@ -1,0 +1,16 @@
+{# Minimal: text only. Name and role on one line, company and contacts on the next. #}
+{% extends "_base.html.j2" %}
+{% import "_macros.html.j2" as m %}
+{% block main %}
+{% set items = v.contact_items %}
+{% if v.name or v.role or v.company or items %}
+<tr><td style="{{ m.text_style(s) }}">
+{% if v.name or v.role %}
+<div>{% if v.name %}<span style="font-weight:bold;color:{{ s.primary }}">{{ v.name }}</span>{% endif %}{% if v.name and v.role %}{{ m.sep(s) }}{% endif %}{{ v.role }}</div>
+{% endif %}
+{% if v.company or items %}
+<div>{% if v.company %}<span style="font-weight:bold">{{ v.company }}</span>{% endif %}{% for i in items %}{% if v.company or not loop.first %}{{ m.sep(s) }}{% endif %}{{ m.item(i, s) }}{% endfor %}</div>
+{% endif %}
+</td></tr>
+{% endif %}
+{% endblock %}

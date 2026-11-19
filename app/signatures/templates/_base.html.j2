@@ -1,0 +1,20 @@
+{#
+  Outer table shared by every template. A template fills the `main` block with its
+  own <tr> rows; the socials, banner and Powered-by rows below are the same for all.
+#}
+<table cellpadding="0" cellspacing="0" border="0">
+{% block main %}{% endblock %}
+{% if v.socials %}
+<tr><td style="padding-top:10px"><table cellpadding="0" cellspacing="0" border="0"><tr>
+{% for social in v.socials %}
+<td{% if not loop.last %} style="padding-right:6px"{% endif %}><a href="{{ social.url }}" style="text-decoration:none"><img src="{{ social.icon_url }}" width="{{ s.icon }}" height="{{ s.icon }}" alt="{{ social.label }}" style="display:block;border:0"></a></td>
+{% endfor %}
+</tr></table></td></tr>
+{% endif %}
+{% if v.banner %}
+<tr><td style="padding-top:12px"><a href="{{ v.banner.target_url }}" style="text-decoration:none"><img src="{{ v.banner.image_url }}" width="{{ v.banner.width_px }}" alt="{{ v.banner.alt_text }}" style="display:block;border:0;max-width:100%"></a></td></tr>
+{% endif %}
+{% if v.powered_by_url %}
+<tr><td style="padding-top:10px;font-family:{{ s.font }};font-size:{{ s.small_size }}px;color:{{ s.muted }}">Powered by <a href="{{ v.powered_by_url }}" style="color:{{ s.muted }}">FooterPilot</a></td></tr>
+{% endif %}
+</table>

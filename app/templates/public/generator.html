@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Free Email Signature Generator | FooterPilot{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Create a professional email signature for Gmail, Outlook or Apple Mail in a minute. Free, no sign-up: fill in your details, copy and paste.">
+<link rel="canonical" href="{{ marketing_base_url }}/email-signature-generator">
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/generator.js') }}" defer></script>
+{% endblock %}
+
+{% set input_class = "mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-xs placeholder:text-slate-400 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" %}
+
+{% macro field(name, label, value, type="text", placeholder="", hint="", autocomplete="off") %}
+<label class="block">
+  <span class="text-sm font-medium text-slate-700">{{ label }}</span>
+  <input type="{{ type }}" name="{{ name }}" value="{{ value or '' }}" placeholder="{{ placeholder }}"
+         autocomplete="{{ autocomplete }}" class="{{ input_class }}">
+  {% if hint %}<span class="mt-1 block text-xs text-slate-500">{{ hint }}</span>{% endif %}
+</label>
+{% endmacro %}
+
+{% macro group(title) %}
+<fieldset class="rounded-xl border border-slate-200 bg-white p-5">
+  <legend class="px-1 text-sm font-semibold text-slate-900">{{ title }}</legend>
+  <div class="grid gap-4 sm:grid-cols-2">{{ caller() }}</div>
+</fieldset>
+{% endmacro %}
+
+{% block content %}
+<section class="mx-auto max-w-6xl px-4 py-10 sm:px-6" x-data="signatureGenerator"
+         @htmx:response-error="failed()" @htmx:send-error="failed()"
+         @htmx:after-request="if ($event.detail.successful) error = ''">
+  <div class="max-w-2xl">
+    <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">Free email signature generator</h1>
+    <p class="mt-3 text-slate-600">
+      Fill in your details, pick a layout and copy the result into Gmail, Outlook or Apple Mail.
+      No sign-up, and nothing you type is stored.
+    </p>
+  </div>
+
+  <div class="mt-8 grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+    <form id="generator-form" class="space-y-5" novalidate @submit.prevent
+          hx-post="{{ preview_path }}" hx-trigger="input delay:300ms"
+          hx-target="#generator-preview" hx-swap="innerHTML" hx-sync="this:replace">
+
+      {% call group("Your details") %}
+        {{ field("full_name", "Full name", form.full_name, autocomplete="name") }}
+        {{ field("job_title", "Job title", form.job_title, autocomplete="organization-title") }}
+        {{ field("phone", "Phone", form.phone, type="tel", autocomplete="tel") }}
+        {{ field("email", "Email", form.email, type="email", autocomplete="email") }}
+        <div class="sm:col-span-2">
+          {{ field("photo_url", "Photo image URL", form.photo_url, type="url", placeholder="https://",
+                   hint="Optional. Shown in the Photo layout. A square image works best.") }}
+        </div>
+      {% endcall %}
+
+      {% call group("Company") %}
+        {{ field("company_name", "Company", form.company_name, autocomplete="organization") }}
+        {{ field("website_url", "Website", form.website_url, type="url", placeholder="https://") }}
+        <div class="sm:col-span-2">
+          {{ field("logo_url", "Logo image URL", form.logo_url, type="url", placeholder="https://",
+                   hint="Optional. A link to your logo that is already online (PNG or JPG).") }}
+        </div>
+        <label class="block sm:col-span-2">
+          <span class="text-sm font-medium text-slate-700">Logo width</span>
+          <input type="range" name="logo_width" min="{{ logo_min }}" max="{{ logo_max }}" step="10"
+                 value="{{ form.logo_width }}" class="mt-2 block w-full accent-brand-600">
+        </label>
+      {% endcall %}
+
+      {% call group("Social links") %}
+        {% for key, label in socials.items() %}
+          {{ field("social_" ~ key, label, form["social_" ~ key], type="url", placeholder="https://") }}
+        {% endfor %}
+      {% endcall %}
+
+      <fieldset class="rounded-xl border border-slate-200 bg-white p-5">
+        <legend class="px-1 text-sm font-semibold text-slate-900">Style</legend>
+        <div class="space-y-4">
+          <div>
+            <span class="text-sm font-medium text-slate-700">Layout</span>
+            <div class="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {% for value, label in templates_choices.items() %}
+              <label class="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-center text-sm font-medium text-slate-700 has-checked:border-brand-600 has-checked:bg-brand-50 has-checked:text-brand-700 has-focus-visible:ring-2 has-focus-visible:ring-brand-100">
+                <input type="radio" name="template" value="{{ value }}" class="sr-only" {% if value == form.template %}checked{% endif %}>
+                {{ label }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="block">
+              <span class="text-sm font-medium text-slate-700">Accent colour</span>
+              <input type="color" name="primary_color" value="{{ form.primary_color }}"
+                     class="mt-1 block h-10 w-full cursor-pointer rounded-lg border border-slate-300 bg-white p-1">
+            </label>
+            <label class="block">
+              <span class="text-sm font-medium text-slate-700">Text colour</span>
+              <input type="color" name="text_color" value="{{ form.text_color }}"
+                     class="mt-1 block h-10 w-full cursor-pointer rounded-lg border border-slate-300 bg-white p-1">
+            </label>
+            <label class="block">
+              <span class="text-sm font-medium text-slate-700">Font</span>
+              <select name="font_family" class="{{ input_class }}">
+                {% for font in fonts %}
+                <option value="{{ font }}" {% if font == form.font_family %}selected{% endif %}>{{ font }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label class="block">
+              <span class="text-sm font-medium text-slate-700">Text size</span>
+              <select name="font_size" class="{{ input_class }}">
+                {% for value, label in font_sizes.items() %}
+                <option value="{{ value }}" {% if value == form.font_size %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+        </div>
+      </fieldset>
+    </form>
+
+    <div class="space-y-6 self-start lg:sticky lg:top-6">
+      <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 class="text-sm font-semibold text-slate-900">Preview</h2>
+        <div id="generator-preview" class="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-white">
+          {% include "public/_generator_preview.html" %}
+        </div>
+        <div id="generator-errors"></div>
+        <p x-show="error" x-cloak x-text="error" class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status"></p>
+
+        <div class="mt-4 flex flex-wrap gap-3">
+          <button type="button" @click="copySignature()"
+                  class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-100">
+            <span x-text="copied === 'signature' ? 'Copied' : 'Copy signature'">Copy signature</span>
+          </button>
+          <button type="button" @click="copySource()"
+                  class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-100">
+            <span x-text="copied === 'source' ? 'Copied' : 'Copy HTML source'">Copy HTML source</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 class="text-sm font-semibold text-slate-900">How to add it to your email</h2>
+        <div class="mt-3 divide-y divide-slate-200 text-sm text-slate-600">
+          <details class="py-3" open>
+            <summary class="cursor-pointer font-medium text-slate-800">Gmail</summary>
+            <ol class="mt-2 list-decimal space-y-1 pl-5">
+              <li>Click <strong>Copy signature</strong> above.</li>
+              <li>In Gmail, open the gear icon, then <strong>See all settings</strong>.</li>
+              <li>On the General tab, scroll to <strong>Signature</strong> and click <strong>Create new</strong>.</li>
+              <li>Paste into the box, then click <strong>Save changes</strong> at the bottom of the page.</li>
+            </ol>
+          </details>
+          <details class="py-3">
+            <summary class="cursor-pointer font-medium text-slate-800">Outlook</summary>
+            <ol class="mt-2 list-decimal space-y-1 pl-5">
+              <li>Click <strong>Copy signature</strong> above.</li>
+              <li>New Outlook and Outlook on the web: open <strong>Settings</strong>, then <strong>Accounts</strong>, then <strong>Signatures</strong>.</li>
+              <li>Classic Outlook: open <strong>File</strong>, <strong>Options</strong>, <strong>Mail</strong>, then <strong>Signatures</strong> and click <strong>New</strong>.</li>
+              <li>Paste into the editor and save.</li>
+            </ol>
+          </details>
+          <details class="py-3">
+            <summary class="cursor-pointer font-medium text-slate-800">Apple Mail</summary>
+            <ol class="mt-2 list-decimal space-y-1 pl-5">
+              <li>Click <strong>Copy signature</strong> above.</li>
+              <li>In Mail, open <strong>Settings</strong>, then <strong>Signatures</strong>, and click <strong>+</strong>.</li>
+              <li>Untick <strong>Always match my default message font</strong>.</li>
+              <li>Paste into the box on the right.</li>
+            </ol>
+          </details>
+        </div>
+      </div>
+
+      <div class="rounded-xl bg-brand-600 p-6 text-white">
+        <h2 class="text-lg font-semibold">Need this for your whole team?</h2>
+        <p class="mt-2 text-sm text-brand-100">
+          FooterPilot puts one signature in every employee's Gmail automatically and keeps
+          names, titles and phone numbers up to date. Nobody has to copy and paste.
+        </p>
+        <a href="/signup" class="mt-4 inline-block rounded-lg bg-white px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50">
+          Set it up for your company
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

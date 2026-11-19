@@ -18,8 +18,13 @@ CSRF_FORM_FIELD = "csrf_token"
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
 
-# Endpoints called by other servers, which authenticate by request signature instead.
-CSRF_EXEMPT_PATHS: frozenset[str] = frozenset()
+# Exempt only: endpoints called by other servers (they authenticate by request
+# signature), and public endpoints that neither use a session nor change anything.
+CSRF_EXEMPT_PATHS: frozenset[str] = frozenset(
+    {
+        "/generator/preview",  # stateless render for the public generator
+    }
+)
 
 _FORM_CONTENT_TYPES = ("application/x-www-form-urlencoded", "multipart/form-data")
 

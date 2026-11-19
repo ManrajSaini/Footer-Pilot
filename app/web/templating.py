@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
+from app.config import get_settings
 from app.web.csrf import get_csrf_token
 
 APP_DIR = Path(__file__).resolve().parent.parent
@@ -15,7 +16,10 @@ STATIC_DIR = APP_DIR / "static"
 
 def _template_globals(request: Request) -> dict[str, Any]:
     # A callable, so the session cookie is only set on pages that actually use it.
-    return {"csrf_token": lambda: get_csrf_token(request)}
+    return {
+        "csrf_token": lambda: get_csrf_token(request),
+        "marketing_base_url": get_settings().marketing_base_url,
+    }
 
 
 templates = Jinja2Templates(directory=TEMPLATES_DIR, context_processors=[_template_globals])

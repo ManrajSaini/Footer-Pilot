@@ -58,3 +58,32 @@ async def test_healthz_reports_database_outage(job_queue, monkeypatch):
         get_settings.cache_clear()
     assert response.status_code == 503
     assert response.json() == {"status": "unavailable"}
+
+
+async def test_home_links_to_generator_and_signup(client: AsyncClient):
+    response = await client.get("/")
+    assert 'href="/email-signature-generator"' in response.text
+    assert 'href="/signup"' in response.text
+    assert '<link rel="canonical" href="http://testserver/">' in response.text
+
+
+async def test_signup_placeholder(client: AsyncClient):
+    response = await client.get("/signup")
+    assert response.status_code == 200
+    assert 'content="noindex"' in response.text
+
+
+async def test_robots_txt(client: AsyncClient):
+    response = await client.get("/robots.txt")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    assert "Disallow: /generator/" in response.text
+    assert "Sitemap: http://testserver/sitemap.xml" in response.text
+
+
+async def test_sitemap_lists_public_pages(client: AsyncClient):
+    response = await client.get("/sitemap.xml")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/xml")
+    assert "<loc>http://testserver/</loc>" in response.text
+    assert "<loc>http://testserver/email-signature-generator</loc>" in response.text

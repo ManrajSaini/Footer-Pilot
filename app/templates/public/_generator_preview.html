@@ -1,0 +1,9 @@
+{# The preview itself. `sandbox` without allow-scripts: nothing in the frame can run code;
+   allow-same-origin lets the page measure the frame's height and copy its content.
+   No id attributes here on purpose: HTMX carries style over between swapped elements
+   that share an id, which would undo the height the script sets on the frame. #}
+<iframe data-signature-frame title="Signature preview"
+        class="block h-56 w-full border-0"
+        sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+        srcdoc="{{ preview_document }}"></iframe>
+<textarea data-signature-html class="hidden" readonly tabindex="-1" aria-hidden="true">{{ signature_html }}</textarea>

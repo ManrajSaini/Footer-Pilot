@@ -226,6 +226,16 @@ Established in Phase 0 (follow these in later phases):
 - Alembic runs synchronously (same psycopg driver, no event loop). Import new model modules in `app/models/__init__.py`. Register new task modules in `import_paths` in `app/tasks/__init__.py`.
 - Tests use the `footerpilot_test` database and the `job_queue` fixture (in-memory Procrastinate). Use `127.0.0.1`, not `localhost`, in database URLs.
 
+Established in Phase 1:
+
+- Renderer contract: `render_signature(design, employee, org_ctx)` in `app/signatures/render.py`, with `EmployeeData`, `OrgContext` and `BannerData` defined there. `OrgContext` carries `social_icon_base_url`, `logo_url`, `banner` and `powered_by_url`; the caller resolves assets to URLs. Banner and Powered-by rendering already work. Link rewriting for tracking is not implemented yet (Phase 6 adds a link map to `OrgContext`).
+- Decisions about what to show live in `_build_view` in Python. The Jinja templates in `app/signatures/templates/` only lay values out; read the rules at the top of `_macros.html.j2` before editing them.
+- Golden files in `tests/signatures/golden/` pin each template's exact HTML. After an intentional template change run `UPDATE_GOLDEN=1 uv run pytest tests/signatures/test_render.py` and review the diff.
+- Reuse the validated types in `app/signatures/schema.py` (`text(n)`, `Color`, `HttpUrl`, `OptionalHttpUrl`, `EmailText`) for any form that feeds a signature.
+- `preview_document()` wraps a signature for an `<iframe srcdoc>` preview. Elements that HTMX swaps in and JavaScript then styles must not have an `id`: HTMX copies `style` between same-id elements and wipes the script's changes. Use `data-` attributes (see `_generator_preview.html`).
+- `/signup` is a placeholder page. Phase 2 replaces it with Google sign-in.
+- `/generator/preview` is CSRF-exempt because it is stateless and public. Authenticated routes must never be exempted.
+
 ## 8. Phase 0: Foundations
 
 **Status: complete (2026-11-19).** Commands and setup are in `README.md`.
@@ -247,6 +257,8 @@ Done when:
 - `pytest` and `ruff check` pass.
 
 ## 9. Phase 1: Signature engine and public generator
+
+**Status: complete (2026-11-19)**, except one manual check left for the owner: paste a generated signature into a real Gmail signature box and compare it with the preview. This needs `ASSET_BASE_URL` to be a public URL, otherwise the social icons will not load in Gmail.
 
 **Goal:** the renderer and templates exist, and anyone can make a personal signature without signing up (idea.md 5.1). No Google or database dependency.
 
