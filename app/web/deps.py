@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models import Organization, User
+from app.models import Organization, OrgStatus, User
 from app.services import accounts
 from app.web.templating import templates
 
@@ -78,6 +78,14 @@ async def require_member(
 
 async def require_connected_org(user: User = Depends(require_member)) -> Organization:
     if not user.organization.is_connected:
+        raise SetupRequired
+    return user.organization
+
+
+async def require_set_up_org(user: User = Depends(require_member)) -> Organization:
+    """Connected now or in the past. Lets the dashboard explain a lost connection
+    instead of sending the owner straight back into the wizard."""
+    if user.organization.status == OrgStatus.PENDING:
         raise SetupRequired
     return user.organization
 

@@ -60,13 +60,39 @@ class ScriptedDirectory:
         return photo
 
 
-class NoGmail:
+class ScriptedGmail:
+    """Mailboxes that record every signature write and fail on request.
+
+    `fail[email]` is an exception to raise on every write to that address, or a list
+    consumed one item per write (an exception to raise, or None to succeed).
+    """
+
+    def __init__(self) -> None:
+        self.writes: list[tuple[str, str]] = []
+        self.fail: dict[str, Exception | list[Exception | None]] = {}
+
+    @property
+    def written_to(self) -> list[str]:
+        return [email for email, _ in self.writes]
+
+    def signature(self, email: str) -> str | None:
+        """What the mailbox holds now: the last thing written to it."""
+        return next((html for address, html in reversed(self.writes) if address == email), None)
+
     async def verify_access(self, email: str) -> None:
         return None
 
+    async def set_signature(self, email: str, html: str) -> None:
+        planned = self.fail.get(email)
+        if isinstance(planned, list):
+            planned = planned.pop(0) if planned else None
+        if planned is not None:
+            raise planned
+        self.writes.append((email, html))
 
-def gateways(directory: ScriptedDirectory) -> GoogleGateways:
-    return GoogleGateways(directory=directory, gmail=NoGmail())
+
+def gateways(directory: ScriptedDirectory, gmail: ScriptedGmail | None = None) -> GoogleGateways:
+    return GoogleGateways(directory=directory, gmail=gmail or ScriptedGmail())
 
 
 class MemoryStorage:

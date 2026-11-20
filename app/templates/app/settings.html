@@ -1,0 +1,52 @@
+{% extends "app/_layout.html" %}
+
+{% block title %}Settings | FooterPilot{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+  <h1 class="text-3xl font-bold tracking-tight">Settings</h1>
+
+  {% if saved %}
+  <p class="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900" role="status">
+    Settings saved.
+  </p>
+  {% endif %}
+
+  <form method="post" action="/app/settings" class="mt-6 rounded-xl border border-slate-200 bg-white p-6">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <h2 class="text-lg font-semibold">Keeping signatures consistent</h2>
+
+    <label class="mt-4 flex items-start gap-3">
+      <input type="checkbox" name="daily_enforce" value="1" class="mt-1 size-4 rounded border-slate-300 accent-brand-600"
+             {% if organization.daily_enforce %}checked{% endif %}>
+      <span>
+        <span class="block text-sm font-medium text-slate-900">Re-apply the company signature every day</span>
+        <span class="mt-1 block text-sm text-slate-600">
+          Google lets employees edit their own signature. With this on, FooterPilot puts
+          the company signature back once a day, so any personal changes last at most a
+          day. With it off, a changed signature stays until that person's details change
+          or you apply the signature again.
+        </span>
+      </span>
+    </label>
+
+    <button type="submit" class="mt-6 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+      Save settings
+    </button>
+  </form>
+
+  <section class="mt-6 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+    <h2 class="text-lg font-semibold text-slate-900">What happens automatically</h2>
+    <ul class="mt-3 list-disc space-y-1 pl-5">
+      <li>Every hour, FooterPilot reads your Google directory.</li>
+      <li>New employees get the company signature after the next reading.</li>
+      <li>When someone's name, job title, phone number or photo changes, their signature is updated.</li>
+      <li>People who are suspended, or whom you excluded, are left alone.</li>
+    </ul>
+  </section>
+
+  <div class="mt-6">
+    {% include "app/_gmail_tip.html" %}
+  </div>
+</div>
+{% endblock %}

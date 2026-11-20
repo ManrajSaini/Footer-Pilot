@@ -36,6 +36,56 @@ The health check is at `/healthz` (returns 503 when the database is unreachable)
 
 Directory sync runs in the worker, not in the web process. Keep `uv run python -m app.cli worker` running in a second terminal, otherwise "Sync now" and the wizard's last step wait until the page reports that the sync did not finish.
 
+While it runs, the worker also acts on its own schedule (times in UTC):
+
+- **Every hour** it reads each connected organisation's Google directory. If a signature has been applied to everyone, new hires and people whose details changed get it straight after.
+- **Every day at 03:30** it re-applies the live signature to every included mailbox, for organisations with that setting on (Settings page, on by default).
+
+With `GOOGLE_MODE=real` these write to real mailboxes without anyone clicking anything. Stop the worker when you do not want that.
+
+## Applying a signature
+
+On the Signature page, "Apply to me only" writes the current draft to your own mailbox at once. "Apply to everyone" makes the draft live and queues one job per included employee; the progress page follows it. Both overwrite whatever signature the mailbox had, and FooterPilot cannot restore the old one.
+
+Images only load in real email when they are hosted publicly (`STORAGE_BACKEND=r2` and a public `ASSET_BASE_URL`). With local storage the designer shows a warning: text and links work, but logos, photos and social icons appear broken.
+
+### What Google does not let an app control
+
+Both were checked against Google's Gmail API reference and on the real test domain
+(2026-11-20). FooterPilot sets the signature text; these two things belong to Gmail.
+
+- **Where the signature sits in a reply or forward.** By default Gmail puts it below
+  the earlier messages, where it is hidden behind "show trimmed content" and piles up in
+  long threads, and adds a "--" line above it. Each person fixes all of this with one
+  tick box in Gmail: Settings > General > Signature > "Insert signature before quoted
+  text in replies and remove the '--' line that precedes it" (it covers forwards too).
+  There is no API field or admin setting for it.
+  The app shows a ready-to-send note with these steps after applying and on Settings.
+- **Employees can edit their signature.** Google has no lock. The daily re-apply puts
+  the company signature back.
+
+The products that avoid the first limit do it by routing all outgoing mail through
+their own servers, or with a browser extension. See `later.md`.
+
+### Checks on a real Workspace domain
+
+To be run by hand against the test domain, with results recorded here.
+
+| Check | Result |
+|---|---|
+| "Apply to me only" writes the signature to the admin's real mailbox | Works (2026-11-20, Classic layout) |
+| User with no existing signature: the new one appears and is used for new mail | not yet run |
+| User with one existing signature: it is replaced | not yet run |
+| User with several signatures saved in Gmail: which one is used for new mail | not yet run |
+| Signature appears on forwards | Yes, but below the forwarded message until the person ticks the Gmail setting above (2026-11-20) |
+| Signature appears on replies | Yes, but below the quoted thread until the person ticks the Gmail setting above (2026-11-20) |
+| Gmail mobile app shows the signature | not yet run |
+| Layout, links and images in mail received by Gmail | Partly (2026-11-20): layout and text are correct in a received message. Images did not load, as expected with local storage. Links not checked |
+| Layout, links and images in mail received by Outlook | not yet run |
+| Layout, links and images in mail received by Apple Mail | not yet run |
+| New user added in Google Admin gets a signature after the next sync | not yet run |
+| Job title changed in Google Admin changes that signature after the next sync | not yet run |
+
 ## Signing in during development
 
 Open the app at the address in `APP_BASE_URL` (default `http://127.0.0.1:8000`), not `localhost`: the session cookie and Google's redirect are tied to that exact host.

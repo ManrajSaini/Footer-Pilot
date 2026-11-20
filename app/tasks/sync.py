@@ -11,6 +11,7 @@ from app.models import Organization, SyncStatus
 from app.services.sync import sync_org
 from app.tasks import procrastinate_app
 from app.tasks.context import get_context
+from app.tasks.deploy import deploy_changes_after_sync
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,10 @@ logger = logging.getLogger(__name__)
 @procrastinate_app.task(name="sync.sync_org", queue="default")
 async def sync_org_task(org_id: str) -> None:
     context = get_context()
-    await sync_org(context.db, context.google, context.storage, uuid.UUID(org_id))
+    result = await sync_org(context.db, context.google, context.storage, uuid.UUID(org_id))
+    if result.ok:
+        # New hires and people whose details changed get the live signature now.
+        await deploy_changes_after_sync(context.db, uuid.UUID(org_id), result.changed_ids)
 
 
 async def request_sync(session: AsyncSession, organization: Organization) -> None:

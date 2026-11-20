@@ -5,7 +5,7 @@ is a separate step.
 """
 
 import uuid
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -16,8 +16,12 @@ from starlette.datastructures import FormData, UploadFile
 
 from app.config import get_settings
 from app.db import get_session
-from app.models import Asset, Organization, Signature, User
+from app.google import get_google
+from app.google.base import GoogleGateways
+from app.models import ApplyStatus, Asset, DeploymentTrigger, Organization, Signature, User
+from app.services import deploy as deploy_service
 from app.services import signatures as signature_service
+from app.services.deploy import FAIL_TEMPORARY, DeploymentInProgress, NotInDirectory
 from app.services.images import MAX_UPLOAD_BYTES, InvalidImageError
 from app.services.signatures import UnknownLogoError, UnknownPreviewError
 from app.signatures.render import (
@@ -35,7 +39,8 @@ from app.signatures.schema import (
     SignatureDesign,
 )
 from app.storage import Storage, get_storage
-from app.web.deps import current_org, require_member
+from app.tasks.deploy import start_deployment
+from app.web.deps import APP_HOME_PATH, current_org, require_member
 from app.web.forms import error_text
 from app.web.templating import templates
 
@@ -224,6 +229,8 @@ async def designer(
         "toggles": TOGGLES,
         "logo_min": LOGO_MIN_WIDTH,
         "logo_max": LOGO_MAX_WIDTH,
+        "eligible_count": await deploy_service.count_eligible(session, organization.id),
+        "images_are_public": get_settings().images_are_public,
     }
     return templates.TemplateResponse(request, "app/designer.html", context)
 
@@ -243,17 +250,27 @@ async def start(
 # --- Saving and previewing ------------------------------------------------------------
 
 
-@router.post("/app/designer/draft", response_class=HTMLResponse)
-async def save_draft(
-    request: Request,
-    organization: Organization = Depends(current_org),
-    user: User = Depends(require_member),
-    session: AsyncSession = Depends(get_session),
-) -> HTMLResponse:
-    """Validate the form, save it as the draft and return the new preview.
+@dataclass
+class _Saved:
+    signature: Signature
+    design: SignatureDesign
+    html: str  # rendered for the person chosen under "Preview as"
 
-    If anything is wrong, nothing is saved: the response only carries the messages,
-    and the last good preview stays on screen.
+
+class _Rejected(Exception):
+    """The form did not validate. Nothing was saved."""
+
+    def __init__(self, errors: dict[str, str]) -> None:
+        self.errors = errors
+
+
+async def _save_form(
+    request: Request, organization: Organization, user: User, session: AsyncSession
+) -> _Saved:
+    """Validate the designer form and save it as the draft. Raises _Rejected.
+
+    Every action that uses the draft (preview, apply) goes through here first, so it
+    always works from exactly what is on screen, even within the autosave delay.
     """
     signature = await _require_signature(session, organization)
     form = await request.form()
@@ -269,26 +286,141 @@ async def save_draft(
         design = design_from_form(form)
         html = await signature_service.render_preview(session, organization, design, subject)
     except FormErrors as error:
-        errors = error.errors
+        raise _Rejected(error.errors) from error
     except UnknownLogoError as error:
-        errors = {"logo": str(error)}
+        raise _Rejected({"logo": str(error)}) from error
     except SignatureTooLongError as error:
-        errors = {"general": str(error)}
-    else:
-        await signature_service.save_draft(session, signature, design)
-        context = {
-            **_preview_context(html),
-            **_status_context(signature, saved=True),
-            "errors": {},
-            "error_fields": ERROR_FIELDS,
-        }
-        return templates.TemplateResponse(request, "app/_designer_saved.html", context)
+        raise _Rejected({"general": str(error)}) from error
 
+    await signature_service.save_draft(session, signature, design)
+    return _Saved(signature, design, html)
+
+
+def _errors_response(request: Request, errors: dict[str, str]) -> HTMLResponse:
+    """Only the messages: the last good preview stays on screen."""
     return templates.TemplateResponse(
         request,
         "app/_designer_errors.html",
         {"errors": errors, "error_fields": ERROR_FIELDS},
         headers={"HX-Reswap": "none"},
+    )
+
+
+@router.post("/app/designer/draft", response_class=HTMLResponse)
+async def save_draft(
+    request: Request,
+    organization: Organization = Depends(current_org),
+    user: User = Depends(require_member),
+    session: AsyncSession = Depends(get_session),
+) -> HTMLResponse:
+    """Validate the form, save it as the draft and return the new preview.
+
+    If anything is wrong, nothing is saved: the response only carries the messages.
+    """
+    try:
+        saved = await _save_form(request, organization, user, session)
+    except _Rejected as rejected:
+        return _errors_response(request, rejected.errors)
+    context = {
+        **_preview_context(saved.html),
+        **_status_context(saved.signature, saved=True),
+        "errors": {},
+        "error_fields": ERROR_FIELDS,
+    }
+    return templates.TemplateResponse(request, "app/_designer_saved.html", context)
+
+
+# --- Applying -------------------------------------------------------------------------
+
+_FIX_FIRST = "Fix the highlighted fields before applying."
+
+
+def _apply_result(request: Request, kind: str, message: str, link: tuple[str, str] | None = None):
+    return templates.TemplateResponse(
+        request, "app/_apply_result.html", {"kind": kind, "message": message, "link": link}
+    )
+
+
+@router.post("/app/designer/apply-test", response_class=HTMLResponse)
+async def apply_to_me(
+    request: Request,
+    organization: Organization = Depends(current_org),
+    user: User = Depends(require_member),
+    session: AsyncSession = Depends(get_session),
+    google: GoogleGateways = Depends(get_google),
+) -> Response:
+    """Write the current draft to the admin's own mailbox only. Nothing is published."""
+    try:
+        saved = await _save_form(request, organization, user, session)
+    except _Rejected as rejected:
+        return _errors_response(request, {"general": _FIX_FIRST, **rejected.errors})
+
+    try:
+        outcome = await deploy_service.apply_to_self(
+            session, google, organization, user, saved.design
+        )
+    except NotInDirectory:
+        return _apply_result(
+            request,
+            "error",
+            f"{user.email} is not in the employee list yet. Sync your directory first.",
+            ("/app/employees", "Go to Employees"),
+        )
+
+    if outcome.status is None:
+        # Access to the domain was lost; the dashboard explains and offers Reconnect.
+        return Response(status_code=200, headers={"HX-Redirect": APP_HOME_PATH})
+    if outcome.status is ApplyStatus.APPLIED:
+        return _apply_result(
+            request,
+            "success",
+            f"Applied to {user.email} only, as a test. Start a new message in Gmail to "
+            "see it (reload Gmail if it is already open). Nobody else was changed and the "
+            "design is still a draft. When it looks right, use Apply to everyone.",
+        )
+    if outcome.error == FAIL_TEMPORARY:
+        return _apply_result(
+            request, "error", "Google was temporarily unavailable. Please try again in a minute."
+        )
+    return _apply_result(request, "error", f"Your signature was not changed: {outcome.error}.")
+
+
+@router.post("/app/designer/apply", response_class=HTMLResponse)
+async def apply_to_everyone(
+    request: Request,
+    organization: Organization = Depends(current_org),
+    user: User = Depends(require_member),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """Publish the draft and start writing it to every included mailbox."""
+    try:
+        saved = await _save_form(request, organization, user, session)
+    except _Rejected as rejected:
+        return _errors_response(request, {"general": _FIX_FIRST, **rejected.errors})
+
+    running = await deploy_service.manual_deployment_in_progress(session, organization.id)
+    if running is None:
+        await deploy_service.publish_draft(session, saved.signature)
+        try:
+            deployment = await start_deployment(
+                session,
+                organization,
+                DeploymentTrigger.MANUAL,
+                created_by=user.id,
+                # The admin asked for everyone: write each mailbox even if unchanged,
+                # which also undoes any edits employees made themselves.
+                force=True,
+            )
+        except DeploymentInProgress:
+            running = await deploy_service.manual_deployment_in_progress(session, organization.id)
+        else:
+            return Response(
+                status_code=200, headers={"HX-Redirect": f"/app/deployments/{deployment.id}"}
+            )
+
+    link = (f"/app/deployments/{running.id}", "See its progress") if running else None
+    return _apply_result(
+        request, "error", "The signature is already being applied. Wait for that to finish.", link
     )
 
 

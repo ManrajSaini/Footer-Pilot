@@ -246,7 +246,12 @@ async def test_owner_can_reconnect_a_disconnected_organisation(
         organization.status = OrgStatus.DISCONNECTED
         await session.commit()
 
-    assert (await client.get("/app")).headers["location"] == "/app/setup"
+    # The dashboard explains what happened; other pages go to the wizard.
+    dashboard = await client.get("/app")
+    assert dashboard.status_code == 200
+    assert "lost access" in dashboard.text and 'href="/app/setup"' in dashboard.text
+    assert "Disconnected" in dashboard.text
+    assert (await client.get("/app/employees")).headers["location"] == "/app/setup"
     page = await client.get("/app/setup")
     assert page.status_code == 200
     assert "lost access" in page.text

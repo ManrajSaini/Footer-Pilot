@@ -31,6 +31,26 @@ class GoogleUnavailableError(GoogleError):
     """Anything else: network trouble, a Google outage, an unexpected response."""
 
 
+# Outcomes of writing one mailbox's signature (besides NotAuthorizedError, which means
+# access to the whole domain is gone).
+
+
+class RetryableError(GoogleError):
+    """Temporary: rate limiting, a server error or a network problem. Try again later."""
+
+
+class SkipError(GoogleError):
+    """This mailbox cannot take a signature (no Gmail, or the account is gone)."""
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
+
+
+class PermanentError(GoogleError):
+    """Google refused the change and retrying will not help."""
+
+
 @dataclass(frozen=True)
 class AdminInfo:
     email: str
@@ -86,6 +106,14 @@ class GmailGateway(Protocol):
         """Confirm the Gmail settings scope is delegated for `email`'s domain.
 
         Raises NotAuthorizedError or GoogleUnavailableError.
+        """
+        ...
+
+    async def set_signature(self, email: str, html: str) -> None:
+        """Replace the signature on `email`'s primary address, acting as that user.
+
+        Raises NotAuthorizedError (delegation is gone), RetryableError, SkipError or
+        PermanentError.
         """
         ...
 

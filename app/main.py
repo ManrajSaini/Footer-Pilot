@@ -17,6 +17,7 @@ from app.tasks import procrastinate_app
 from app.web import (
     auth,
     dashboard,
+    deployments,
     designer,
     dev,
     employees,
@@ -25,6 +26,9 @@ from app.web import (
     onboarding,
     public,
     ratelimit,
+)
+from app.web import (
+    settings as settings_pages,
 )
 from app.web.csrf import csrf_protect
 from app.web.deps import register_access_handlers
@@ -88,6 +92,8 @@ def create_app() -> FastAPI:
     app.include_router(dashboard.router)
     app.include_router(employees.router)
     app.include_router(designer.router)
+    app.include_router(deployments.router)
+    app.include_router(settings_pages.router)
     if settings.dev_login:  # refused by Settings when ENV=production
         app.include_router(dev.router)
     return app

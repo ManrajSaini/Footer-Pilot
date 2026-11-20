@@ -17,6 +17,7 @@ name and one without a mailbox.
 import hashlib
 import io
 import json
+import logging
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -28,9 +29,12 @@ from app.google.base import (
     GoogleUnavailableError,
     NotAdminError,
     NotAuthorizedError,
+    PermanentError,
+    RetryableError,
 )
 
 FIXTURE = Path(__file__).parent / "fixtures" / "directory.json"
+logger = logging.getLogger(__name__)
 
 
 def _local_part(email: str) -> str:
@@ -124,9 +128,35 @@ class FakeDirectoryGateway:
 
 
 class FakeGmailGateway:
+    """Pretend mailboxes. Signature writes are kept in memory, latest per address.
+
+    Two fixture people misbehave, so the deployment summary has something to show:
+    `"gmail": "error"` is refused every time, `"gmail": "retry_once"` fails on the
+    first try and then works.
+    """
+
+    def __init__(self) -> None:
+        self.signatures: dict[str, str] = {}
+        self._tried: set[str] = set()
+
     async def verify_access(self, email: str) -> None:
         local = _local_part(email)
         if local.startswith(("nodelegation", "nogmail")):
             raise NotAuthorizedError("unauthorized_client (fake)")
         if local.startswith("outage"):
             raise GoogleUnavailableError("Google is unreachable (fake)")
+
+    async def set_signature(self, email: str, html: str) -> None:
+        local = _local_part(email)
+        if local.startswith(("nodelegation", "nogmail")):
+            raise NotAuthorizedError("unauthorized_client (fake)")
+        behaviour = next(
+            (entry.get("gmail") for entry in _fixture() if entry["local"] == local), None
+        )
+        if behaviour == "error":
+            raise PermanentError("Google refused the change (fake)")
+        if behaviour == "retry_once" and email not in self._tried:
+            self._tried.add(email)
+            raise RetryableError("HTTP 429: rate limited (fake)")
+        self.signatures[email.lower()] = html
+        logger.info("fake gmail: signature written chars=%s", len(html))

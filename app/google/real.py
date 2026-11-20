@@ -29,6 +29,9 @@ from app.google.base import (
     GoogleUnavailableError,
     NotAdminError,
     NotAuthorizedError,
+    PermanentError,
+    RetryableError,
+    SkipError,
 )
 
 logger = logging.getLogger(__name__)
@@ -209,9 +212,78 @@ class RealDirectoryGateway(_DelegatedClient):
             raise
 
 
+# Google reports quota problems as 403 or 429 with one of these reasons.
+_RATE_LIMIT_REASONS = frozenset(
+    {"rateLimitExceeded", "userRateLimitExceeded", "quotaExceeded", "dailyLimitExceeded"}
+)
+
+
+def _error_reasons(error: HttpError) -> set[str]:
+    """The machine-readable reasons in a Google API error body."""
+    try:
+        body = json.loads(error.content)["error"]
+    except (ValueError, KeyError, TypeError):
+        return set()
+    if not isinstance(body, dict):
+        return set()
+    reasons = {
+        str(item.get("reason")) for item in body.get("errors") or [] if isinstance(item, dict)
+    }
+    if body.get("status"):
+        reasons.add(str(body["status"]))
+    return reasons
+
+
+def translate_write_error(error: Exception) -> GoogleError:
+    """Map a failure while writing a signature onto what the deployment should do."""
+    if isinstance(error, GoogleError):
+        return error
+    if isinstance(error, RefreshError):
+        # Minting the token as this user failed, before Gmail was contacted.
+        text = str(error)
+        if any(code in text for code in _NOT_DELEGATED):
+            return NotAuthorizedError(text)
+        if "invalid_grant" in text:
+            return SkipError("The Google account no longer exists or is disabled")
+        return RetryableError(text)
+    if isinstance(error, HttpError):
+        status = error.resp.status
+        reasons = _error_reasons(error)
+        if status == 429 or status >= 500 or reasons & _RATE_LIMIT_REASONS:
+            return RetryableError(f"HTTP {status}: {error.reason}")
+        if status == 404:
+            return SkipError("No Gmail mailbox was found for this address")
+        if status == 400 and reasons & {"failedPrecondition", "FAILED_PRECONDITION"}:
+            return SkipError("Gmail is not enabled for this user")
+        return PermanentError(f"Google refused the change (HTTP {status}: {error.reason})")
+    # Timeouts, connection resets and other transport trouble.
+    return RetryableError(f"{type(error).__name__}: {error}")
+
+
 class RealGmailGateway(_DelegatedClient):
     async def verify_access(self, email: str) -> None:
         await self._run(self._mint_token, email)
+
+    async def set_signature(self, email: str, html: str) -> None:
+        try:
+            await asyncio.to_thread(self._patch_signature, email, html)
+        except (GoogleAuthError, HttpError, OSError, httplib2.HttpLib2Error) as error:
+            raise translate_write_error(error) from error
+
+    def _patch_signature(self, email: str, html: str) -> None:
+        http = google_auth_httplib2.AuthorizedHttp(
+            self._credentials(email, SCOPE_GMAIL_SETTINGS), http=self._http()
+        )
+        service = build("gmail", "v1", http=http, cache_discovery=False)
+        # The primary send-as address is the user's own address. `patch` changes the
+        # signature and leaves every other send-as setting alone.
+        request = (
+            service.users()
+            .settings()
+            .sendAs()
+            .patch(userId="me", sendAsEmail=email, body={"signature": html})
+        )
+        request.execute()
 
     def _mint_token(self, email: str) -> None:
         # Minting a token is enough to prove the scope is delegated, and works even if

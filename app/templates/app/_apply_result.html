@@ -1,0 +1,6 @@
+{# Outcome of "Apply to me only", or the reason "Apply to everyone" did not start. #}
+<p class="mt-4 rounded-lg border px-4 py-3 text-sm {{ 'border-emerald-200 bg-emerald-50 text-emerald-900' if kind == 'success' else 'border-red-200 bg-red-50 text-red-900' }}"
+   role="{{ 'status' if kind == 'success' else 'alert' }}">
+  {{ message }}
+  {% if link %}<a href="{{ link[0] }}" class="font-semibold underline">{{ link[1] }}</a>{% endif %}
+</p>

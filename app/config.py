@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from typing import Literal, Self
+from urllib.parse import urlsplit
 
 from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -117,6 +118,17 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.env == "production"
+
+    @property
+    def images_are_public(self) -> bool:
+        """Whether images in signatures can be loaded by a mail client.
+
+        False in local development: files stored on this machine, or served from a
+        loopback address, cannot be reached by Gmail.
+        """
+        host = (urlsplit(self.asset_base_url).hostname or "").lower()
+        loopback = host in ("localhost", "testserver", "::1") or host.startswith("127.")
+        return self.storage_backend == "r2" and not loopback
 
     @property
     def database_dsn(self) -> str:

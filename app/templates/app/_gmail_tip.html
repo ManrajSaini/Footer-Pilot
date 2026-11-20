@@ -1,0 +1,31 @@
+{# One-time step each employee does in Gmail. Google offers no way to set this for
+   them: by default Gmail puts the signature below the earlier messages in replies and
+   forwards (hidden under "show trimmed content") with a "--" line above it. #}
+<section class="rounded-xl border border-slate-200 bg-white p-6" x-data="{ copied: false }">
+  <h2 class="text-lg font-semibold text-slate-900">One-time step for each person in Gmail</h2>
+  <p class="mt-2 text-sm leading-6 text-slate-600">
+    In replies and forwards, Gmail normally puts a signature at the very bottom, below
+    the earlier messages, where it is hidden behind the three dots, and adds a "--" line
+    above it. One setting moves the signature directly under what the person writes and
+    removes that line. Google only lets each person change it for themselves, so send
+    your team the note below.
+  </p>
+
+  <div x-ref="note" class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-800">
+    <p>Hi,</p>
+    <p class="mt-2">Your Gmail now has our company email signature. Please do this once, so it appears directly under what you write when you reply to or forward an email:</p>
+    <ol class="mt-2 list-decimal space-y-1 pl-5">
+      <li>In Gmail, click the gear icon at the top right, then "See all settings".</li>
+      <li>On the General tab, scroll down to "Signature".</li>
+      <li>Tick "Insert signature before quoted text in replies and remove the "--" line that precedes it". Despite its name, this covers forwards too.</li>
+      <li>Scroll to the bottom and click "Save changes".</li>
+    </ol>
+    <p class="mt-2">It takes under a minute. Thank you!</p>
+  </div>
+
+  <button type="button"
+          @click="navigator.clipboard.writeText($refs.note.innerText).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+          class="mt-4 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+    <span x-text="copied ? 'Copied' : 'Copy this note'">Copy this note</span>
+  </button>
+</section>

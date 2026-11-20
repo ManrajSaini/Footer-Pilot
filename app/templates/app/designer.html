@@ -173,6 +173,59 @@
         </p>
         {% endif %}
       </div>
+
+      {# Both buttons send the whole form, so what is applied is exactly what is on screen. #}
+      <div class="mt-5 rounded-xl border border-slate-200 bg-white p-5" x-data="{ confirming: false }">
+        <h2 class="text-sm font-semibold text-slate-900">Apply</h2>
+        <p class="mt-1 text-sm text-slate-600">
+          Try it on your own mailbox first. When it looks right, apply it to everyone.
+        </p>
+        {% if not images_are_public %}
+        <p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+          This server keeps images on this computer, so logos, photos and social icons
+          will not load in real email. Text and links will work.
+        </p>
+        {% endif %}
+        <div class="mt-4 flex flex-wrap gap-3">
+          <button type="button" hx-post="/app/designer/apply-test" hx-target="#apply-result" hx-swap="innerHTML"
+                  hx-sync="this:replace" hx-disabled-elt="this"
+                  class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">
+            Apply to me only
+          </button>
+          <button type="button" @click="confirming = true" {% if not eligible_count %}disabled{% endif %}
+                  class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
+            Apply to everyone
+          </button>
+        </div>
+        {% if not eligible_count %}
+        <p class="mt-2 text-xs text-slate-500">There are no included, active employees yet.</p>
+        {% endif %}
+        <div id="apply-result" aria-live="polite"></div>
+
+        <div x-show="confirming" x-cloak @keydown.escape.window="confirming = false"
+             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+             role="dialog" aria-modal="true" aria-labelledby="apply-title">
+          <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" @click.outside="confirming = false">
+            <h3 id="apply-title" class="text-lg font-semibold">Apply to everyone?</h3>
+            <p class="mt-2 text-sm leading-6 text-slate-600">
+              This replaces the Gmail signature of
+              <strong class="text-slate-900">{{ eligible_count }} {{ "employee" if eligible_count == 1 else "employees" }}</strong>
+              with this design. Whatever signature they have now is overwritten and cannot be brought back.
+            </p>
+            <div class="mt-6 flex justify-end gap-3">
+              <button type="button" @click="confirming = false"
+                      class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button type="button" @click="confirming = false"
+                      hx-post="/app/designer/apply" hx-target="#apply-result" hx-swap="innerHTML" hx-sync="this:replace"
+                      class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+                Apply to {{ eligible_count }} {{ "employee" if eligible_count == 1 else "employees" }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </form>
 </div>

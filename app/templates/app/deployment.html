@@ -1,0 +1,22 @@
+{% extends "app/_layout.html" %}
+
+{% block title %}Applying the signature | FooterPilot{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+  <p class="text-sm font-semibold uppercase tracking-wide text-brand-600">{{ trigger_label }}</p>
+  <h1 class="mt-2 text-3xl font-bold tracking-tight">Applying the signature</h1>
+  <p class="mt-2 text-sm text-slate-600">
+    Started {{ deployment.created_at | timeago }}. You can leave this page; the work
+    carries on in the background.
+  </p>
+
+  <section class="mt-8 rounded-xl border border-slate-200 bg-white p-6">
+    {% include "app/_deployment_status.html" %}
+  </section>
+
+  <div class="mt-6">
+    {% include "app/_gmail_tip.html" %}
+  </div>
+</div>
+{% endblock %}

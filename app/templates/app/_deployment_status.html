@@ -1,0 +1,85 @@
+{# Progress of one deployment. Polls itself every two seconds while it is running, then
+   shows the result. No id on the root: it is replaced whole on every poll. #}
+<div data-deployment-status
+     {% if deployment.in_progress %}hx-get="/app/deployments/{{ deployment.id }}/status" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+
+  {% if deployment.in_progress %}
+  <p class="flex items-center gap-2 text-sm font-medium text-slate-700" role="status">
+    <span class="size-2.5 animate-pulse rounded-full bg-brand-600"></span>
+    Updating mailboxes: {{ deployment.processed }} of {{ deployment.total }} done
+  </p>
+  {% elif deployment.status == "completed" %}
+  <p class="text-lg font-semibold text-emerald-700">
+    Done. {{ deployment.succeeded }} {{ "mailbox has" if deployment.succeeded == 1 else "mailboxes have" }} the signature.
+  </p>
+  {% if deployment.skipped %}
+  <p class="mt-1 text-sm text-slate-600">{{ deployment.skipped }} skipped; the reason is listed below.</p>
+  {% endif %}
+  {% elif deployment.status == "completed_with_errors" %}
+  <p class="text-lg font-semibold text-amber-700">
+    Finished, but {{ deployment.failed }} of {{ deployment.total }}
+    {{ "mailbox" if deployment.failed == 1 else "mailboxes" }} could not be updated.
+  </p>
+  {% else %}
+  <p class="text-lg font-semibold text-red-700">This run stopped before it finished.</p>
+  <p class="mt-1 text-sm text-slate-600">
+    Either FooterPilot lost access to your domain, or the run took too long. Check the
+    <a href="/app" class="font-semibold underline">dashboard</a>, then apply again.
+  </p>
+  {% endif %}
+
+  <div class="mt-4 h-2 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+    <div class="h-full rounded-full {{ 'bg-brand-600' if deployment.in_progress else ('bg-emerald-500' if deployment.status == 'completed' else 'bg-amber-500') }}"
+         style="width: {{ percent }}%"></div>
+  </div>
+
+  <dl class="mt-4 grid grid-cols-3 gap-4 text-center">
+    <div class="rounded-lg border border-slate-200 p-3">
+      <dt class="text-xs font-medium text-slate-500">Updated</dt>
+      <dd class="mt-1 text-xl font-semibold">{{ deployment.succeeded }}</dd>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-3">
+      <dt class="text-xs font-medium text-slate-500">Failed</dt>
+      <dd class="mt-1 text-xl font-semibold {{ 'text-red-700' if deployment.failed else '' }}">{{ deployment.failed }}</dd>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-3">
+      <dt class="text-xs font-medium text-slate-500">Skipped</dt>
+      <dd class="mt-1 text-xl font-semibold">{{ deployment.skipped }}</dd>
+    </div>
+  </dl>
+
+  {% if attention %}
+  <div class="mt-6">
+    <h2 class="text-sm font-semibold text-slate-900">Mailboxes without the signature</h2>
+    <p class="mt-1 text-xs text-slate-500">The latest result for each included person who does not have it.</p>
+    <ul class="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200 text-sm">
+      {% for employee in attention %}
+      <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3">
+        <span class="font-medium text-slate-900">{{ employee.full_name or employee.email }}
+          <span class="font-normal text-slate-500">{{ employee.email }}</span>
+        </span>
+        <span class="text-xs">
+          <span class="rounded-full px-2 py-0.5 font-semibold {{ 'bg-red-100 text-red-800' if employee.apply_status == 'failed' else 'bg-slate-200 text-slate-700' }}">
+            {{ "Failed" if employee.apply_status == "failed" else "Skipped" }}
+          </span>
+          <span class="ml-2 text-slate-600">{{ employee.apply_error }}</span>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% if can_retry %}
+    <button type="button" hx-post="/app/deployments/retry-failed"
+            class="mt-4 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+      Retry failed
+    </button>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if not deployment.in_progress %}
+  <div class="mt-6 flex flex-wrap gap-4 text-sm font-semibold">
+    <a href="/app/employees" class="text-brand-700 underline">See every employee's status</a>
+    <a href="/app/designer" class="text-slate-600 underline">Back to the designer</a>
+  </div>
+  {% endif %}
+</div>

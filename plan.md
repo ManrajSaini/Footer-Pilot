@@ -270,6 +270,20 @@ Established in Phase 4:
 - Storage keys are validated as text (`LocalStorage._path`), never by resolving paths on disk: resolving while other uploads create the same folders is unstable on Windows.
 - When checking the app by hand or by script, never start a second worker against the development database: workers share one job queue, so a fake-mode worker could process a real organisation's jobs. Use a separate database (`DATABASE_URL`), port and `MEDIA_ROOT`.
 
+Established in Phase 5:
+
+- Deployment lives in `app/services/deploy.py` (logic) and `app/tasks/deploy.py` (jobs). Start one with `start_deployment(session, organization, trigger, ...)`; it creates the row and queues one `apply_signature` job per eligible employee, locked per mailbox so different mailboxes run in parallel.
+- `_eligible()` in `services/deploy.py` is the single definition of who gets the signature (active and not excluded). Phase 7 adds the plan limit there and nowhere else.
+- Results are recorded through `_record`, which updates the employee and the deployment counters in one transaction and closes the deployment when the last mailbox reports. A mailbox that already has the right signature counts as succeeded without a call to Google. Skips (no mailbox) are not errors: only failures make a run `completed_with_errors`.
+- Gmail write errors are mapped in `translate_write_error`: `RetryableError` (retried by the queue, 5 tries, waits of 3, 9, 27, 81 s), `SkipError`, `PermanentError`, and `NotAuthorizedError`, which disconnects the organisation and stops the deployment.
+- The designer's apply endpoints go through `_save_form` first, so what is applied is exactly what is on screen. "Apply to me only" runs in the request (no queue) and publishes nothing. "Apply to everyone" publishes, then starts a forced manual deployment, so it also overwrites signatures employees edited themselves.
+- One manual deployment per organisation at a time is guaranteed by a partial unique index, not by application checks. Deployments still unfinished after 30 minutes are marked failed (`expire_stale_deployments`) so they cannot block new ones.
+- The deployment page lists the *current* failed and skipped employees (latest result per person), not a per-run history. There is no per-run item table.
+- Scheduled jobs are in `app/tasks/periodic.py`: hourly `sync_all`, daily `enforce_all` at 03:30 UTC. After every successful sync, `deploy_changes_after_sync` updates the people whose details changed, if a design is published.
+- The dashboard uses `require_set_up_org` so a disconnected organisation sees an explanation and a Reconnect button; every other page still sends it to the wizard.
+- `Settings.images_are_public` is false with local storage or a loopback address; the designer warns that images will not load in real email.
+- Tests: use the `mail` fixture pattern (a `ScriptedGmail` from `tests/fakes.py`) for anything that deploys. The app's default fake Gmail deliberately has one mailbox that always fails and one that fails once, which suits manual checks but leaves an in-process test deployment unfinished.
+
 ## 8. Phase 0: Foundations
 
 **Status: complete (2026-11-19).** Commands and setup are in `README.md`.
@@ -399,6 +413,8 @@ Done when:
 - Switching "Preview as" shows real data for different employees.
 
 ## 13. Phase 5: Apply and automatic updates
+
+**Status: built (2026-11-20).** Verified in a browser in fake mode: apply to me, apply to everyone with live progress, automatic retry of a temporary error, failure list and Retry failed, discard, settings. Not yet done: the manual checks on the real test domain listed below (they write to real mailboxes, so the owner runs them); record the results in `README.md`. Deviations from the task list: "Apply to me only" runs immediately instead of through the queue; "Apply to everyone" is always forced; the failure list shows each person's latest result instead of a per-run history.
 
 **Goal:** one click puts the signature into every mailbox, and it stays correct without further action (idea.md 5.6, 5.7).
 

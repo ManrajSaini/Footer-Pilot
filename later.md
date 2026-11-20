@@ -32,6 +32,21 @@ Not part of V1. Do not build any of this until `plan.md` is complete and V1 has 
 - **Internal admin panel** for support (view organisations, re-run sync, impersonate).
 - **Localisation** of the app and of signature field labels.
 
+## Signature placement in replies (found in Phase 5 testing)
+
+Gmail puts an API-set signature below the earlier messages in replies and forwards unless each person
+ticks one box in Gmail settings, and Google exposes no way to set it for them. V1
+shows employees how. Two ways other products remove the per-person step:
+
+- **Browser extension**: inserts the signature in the compose window, under the reply.
+  Admins can force-install it on managed Chrome. Desktop Chrome only; needs building,
+  store review and upkeep. Fits the "we never touch your email" promise.
+- **Server-side mode**: the customer adds a Google Workspace routing rule so outgoing
+  mail passes through our servers, which add the signature after sending. Works on every
+  device including mobile. Conflicts with the current privacy promise and the V1
+  out-of-scope list (mail would pass through our systems), and makes us responsible for
+  mail delivery. Only worth considering as an opt-in for larger customers.
+
 ## Growth work (non-code or mostly content)
 
 - Comparison pages against existing signature tools.

@@ -7,11 +7,29 @@
   <h1 class="text-3xl font-bold tracking-tight">{{ organization.name }}</h1>
   <p class="mt-2 text-slate-600">Signed in as {{ user.email }}</p>
 
+  {% if not organization.is_connected %}
+  <div class="mt-6 rounded-xl border border-red-200 bg-red-50 p-5" role="alert">
+    <h2 class="font-semibold text-red-900">FooterPilot has lost access to your Google Workspace</h2>
+    <p class="mt-1 text-sm text-red-900">
+      Signatures already in place stay as they are, but new hires and changes are not
+      being applied. This usually means the entry was removed or changed on the Admin
+      console's domain-wide delegation page.
+    </p>
+    <a href="/app/setup" class="mt-4 inline-block rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">
+      Reconnect
+    </a>
+  </div>
+  {% endif %}
+
   <dl class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
     <div class="rounded-xl border border-slate-200 bg-white p-6">
       <dt class="text-sm font-medium text-slate-500">Google Workspace</dt>
       <dd class="mt-2 flex items-center gap-2 text-lg font-semibold">
+        {% if organization.is_connected %}
         <span class="size-2.5 rounded-full bg-emerald-500"></span> Connected
+        {% else %}
+        <span class="size-2.5 rounded-full bg-red-500"></span> Disconnected
+        {% endif %}
       </dd>
       <dd class="mt-1 text-sm text-slate-600">{{ organization.domain }}</dd>
     </div>
@@ -36,12 +54,41 @@
       <dd class="mt-1 text-sm text-slate-600">Choose a layout to start</dd>
       {% elif signature.published_design is none %}
       <dd class="mt-2 text-lg font-semibold">Draft</dd>
-      <dd class="mt-1 text-sm text-slate-600">Not applied to mailboxes yet</dd>
+      <dd class="mt-1 text-sm text-slate-600">Not applied to everyone yet</dd>
       {% else %}
       <dd class="mt-2 text-lg font-semibold">Live</dd>
       <dd class="mt-1 text-sm text-slate-600">Applied {{ signature.published_at | timeago }}</dd>
       {% endif %}
     </a>
+    {% if deployment %}
+    <a href="/app/deployments/{{ deployment.id }}" class="rounded-xl border border-slate-200 bg-white p-6 hover:border-brand-600">
+    {% else %}
+    <div class="rounded-xl border border-slate-200 bg-white p-6">
+    {% endif %}
+      <dt class="text-sm font-medium text-slate-500">Applied to everyone</dt>
+      {% if not deployment %}
+      <dd class="mt-2 text-lg font-semibold">Not yet</dd>
+      {% if test %}
+      <dd class="mt-1 text-sm text-slate-600">Tested on your own mailbox {{ test.finished_at | timeago }}</dd>
+      {% else %}
+      <dd class="mt-1 text-sm text-slate-600">Nothing has been sent to mailboxes</dd>
+      {% endif %}
+      {% elif deployment.in_progress %}
+      <dd class="mt-2 text-lg font-semibold">In progress</dd>
+      <dd class="mt-1 text-sm text-slate-600">{{ deployment.processed }} of {{ deployment.total }} mailboxes done</dd>
+      {% else %}
+      <dd class="mt-2 text-lg font-semibold">
+        {{ {"completed": "Completed", "completed_with_errors": "Completed with problems", "failed": "Stopped early"}[deployment.status] }}
+      </dd>
+      <dd class="mt-1 text-sm text-slate-600">
+        {{ deployment.succeeded }} updated{% if deployment.failed %}, {{ deployment.failed }} failed{% endif %}{% if deployment.skipped %}, {{ deployment.skipped }} skipped{% endif %}
+        · {{ deployment.finished_at | timeago }}
+      </dd>
+      {% endif %}
+      {% if attention %}
+      <dd class="mt-1 text-sm font-medium text-amber-700">{{ attention }} {{ "mailbox" if attention == 1 else "mailboxes" }} could not be updated</dd>
+      {% endif %}
+    {% if deployment %}</a>{% else %}</div>{% endif %}
     <div class="rounded-xl border border-slate-200 bg-white p-6">
       <dt class="text-sm font-medium text-slate-500">Plan</dt>
       <dd class="mt-2 text-lg font-semibold capitalize">{{ organization.plan }}</dd>

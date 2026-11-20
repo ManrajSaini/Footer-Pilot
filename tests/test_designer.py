@@ -20,55 +20,9 @@ from app.services.sync import sync_org
 from app.signatures.schema import SignatureDesign
 from app.web.designer import LENGTH_WARNING_FROM, _length_level, design_from_form
 from tests.fakes import image_bytes
-from tests.helpers import HTMX, sign_in
+from tests.helpers import HTMX, form, preview_of, sign_in
 
 DRAFT = "/app/designer/draft"
-
-# What the designer form posts for an untouched default design.
-BASE_FORM = {
-    "template": "classic",
-    "primary_color": "#1d4ed8",
-    "text_color": "#1f2937",
-    "font_family": "Arial",
-    "font_size": "medium",
-    "logo_asset_id": "",
-    "logo_width": "120",
-    "logo_link_url": "",
-    "show_photo": "1",
-    "show_job_title": "1",
-    "show_department": "1",
-    "show_phone_work": "1",
-    "show_phone_mobile": "1",
-    "show_email": "1",
-    "company_name": "Acme",
-    "company_tagline": "",
-    "company_address": "",
-    "company_phone": "",
-    "company_website_url": "https://acme.test",
-    "social_linkedin": "",
-    "social_x": "",
-    "social_facebook": "",
-    "social_instagram": "",
-    "social_youtube": "",
-    "social_github": "",
-}
-
-
-def form(**changes) -> dict[str, str]:
-    """BASE_FORM with changes. Pass `name=None` to leave a field (a checkbox) out."""
-    data = {**BASE_FORM, **{k: v for k, v in changes.items() if v is not None}}
-    for name, value in changes.items():
-        if value is None:
-            data.pop(name, None)
-    return data
-
-
-def preview_of(response_text: str) -> str:
-    """The signature HTML inside the preview frame of a response."""
-    match = re.search(r'srcdoc="([^"]*)"', response_text)
-    assert match, "no preview frame in response"
-    document = html_module.unescape(match.group(1))
-    return document.split("<body>", 1)[1].rsplit("</body>", 1)[0]
 
 
 async def employee(db: Database, email: str) -> Employee:
@@ -177,7 +131,7 @@ async def test_choosing_a_template_creates_the_draft(client: AsyncClient, db, ow
 
     page = (await client.get("/app/designer")).text
     assert "Signature designer" in page
-    assert "Draft · not applied yet" in page
+    assert "Draft · not applied to everyone yet" in page
 
 
 async def test_unknown_template_is_rejected(client: AsyncClient, db, owner):
@@ -555,7 +509,7 @@ async def publish(db: Database, org_id) -> None:
 
 
 async def test_status_badge_follows_draft_and_published(client: AsyncClient, db, owner, designing):
-    assert "Draft · not applied yet" in (await client.get("/app/designer")).text
+    assert "Draft · not applied to everyone yet" in (await client.get("/app/designer")).text
 
     await publish(db, owner.org_id)
     page = (await client.get("/app/designer")).text
@@ -611,7 +565,7 @@ async def test_dashboard_shows_the_signature_state(client: AsyncClient, db, owne
     async with db.session() as session:
         organization = await session.get(Organization, owner.org_id)
         await signature_service.create_signature(session, organization, "classic")
-    assert "Not applied to mailboxes yet" in (await client.get("/app")).text
+    assert "Not applied to everyone yet" in (await client.get("/app")).text
 
 
 # --- Logo -----------------------------------------------------------------------------
