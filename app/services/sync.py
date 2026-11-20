@@ -10,6 +10,7 @@ import logging
 import secrets
 import string
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
@@ -137,9 +138,22 @@ async def _fetch_new_photos(
     return dict(result for result in results if result is not None)
 
 
+AfterSync = Callable[["SyncResult"], Awaitable[None]]
+
+
 async def sync_org(
-    db: Database, google: GoogleGateways, storage: Storage, org_id: uuid.UUID
+    db: Database,
+    google: GoogleGateways,
+    storage: Storage,
+    org_id: uuid.UUID,
+    after_changes: AfterSync | None = None,
 ) -> SyncResult:
+    """Sync one organisation's directory.
+
+    `after_changes` runs once the employee changes are saved but before the sync is
+    marked finished. The worker uses it to queue signature updates, so a page watching
+    the sync never sees "finished" with those updates not yet started.
+    """
     async with db.session() as session:
         organization = await session.get(Organization, org_id)
         admin_email = (
@@ -218,6 +232,11 @@ async def sync_org(
                 employee.status = EmployeeStatus.REMOVED
                 result.removed += 1
                 result.changed_ids.add(employee.id)
+
+        await session.commit()  # employees first, so `after_changes` can read them
+
+        if after_changes is not None:
+            await after_changes(result)
 
         organization = await session.get(Organization, org_id)
         organization.last_sync_at = now

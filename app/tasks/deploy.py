@@ -1,5 +1,6 @@
 """Signature deployment as background jobs: one job per mailbox."""
 
+import contextlib
 import logging
 import uuid
 
@@ -8,8 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import Database
 from app.google.base import RetryableError
-from app.models import Deployment, DeploymentTrigger, Organization
+from app.models import Deployment, DeploymentTrigger, Employee, Organization
 from app.services import deploy as deploy_service
+from app.services import employees as employee_service
 from app.services.deploy import MAX_ATTEMPTS, NothingPublished
 from app.tasks import procrastinate_app
 from app.tasks.context import get_context
@@ -39,6 +41,46 @@ async def apply_signature_task(
         # On the last try a temporary error is recorded as a failure instead of raised.
         final_attempt=context.job.attempts >= MAX_ATTEMPTS - 1,
     )
+
+
+@procrastinate_app.task(
+    name="deploy.clear_signature", queue="default", pass_context=True, retry=_RETRY
+)
+async def clear_signature_task(context: JobContext, employee_id: str) -> None:
+    services = get_context()
+    await deploy_service.clear_signature(
+        services.db,
+        services.google,
+        uuid.UUID(employee_id),
+        final_attempt=context.job.attempts >= MAX_ATTEMPTS - 1,
+    )
+
+
+async def change_exclusion(
+    session: AsyncSession, organization: Organization, employee_id: uuid.UUID, excluded: bool
+) -> Employee | None:
+    """Include or exclude one employee, and make their mailbox match.
+
+    Excluding removes the company signature from their Gmail (if we put one there).
+    Including applies the live signature to them straight away.
+    Returns None if the employee is not in this organisation.
+    """
+    employee = await employee_service.set_excluded(session, organization.id, employee_id, excluded)
+    if employee is None:
+        return None
+    if excluded:
+        if employee.applied_hash is not None:
+            await clear_signature_task.configure(lock=f"employee:{employee.id}").defer_async(
+                employee_id=str(employee.id)
+            )
+    elif employee.is_active:
+        # With no live signature yet there is nothing to apply: they will get it when
+        # the admin applies to everyone.
+        with contextlib.suppress(NothingPublished):
+            await start_deployment(
+                session, organization, DeploymentTrigger.SYNC, employee_ids={employee.id}
+            )
+    return employee
 
 
 async def start_deployment(

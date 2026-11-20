@@ -1,14 +1,22 @@
 {# Sync state, shown on the employees page (view="employees") and in step 4 of the
    wizard (view="setup"). While a sync is running it polls itself every two seconds.
    No id on the root element: it is replaced whole on every poll. #}
-{% set polling = state == "running" %}
-<div data-sync-status
-     {% if polling %}hx-get="/app/employees/sync-status?view={{ view }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+{% set polling = state in ("running", "applying") %}
+{# When idle it still re-checks once after someone is included or excluded, because
+   that can start writing a signature, which then makes it poll. #}
+<div data-sync-status hx-get="/app/employees/sync-status?view={{ view }}" hx-swap="outerHTML"
+     hx-trigger="{{ 'every 2s' if polling else 'employee-toggled from:body delay:300ms' }}">
 
   {% if state == "running" %}
   <p class="flex items-center gap-2 text-sm text-slate-600" role="status">
     <span class="size-2.5 animate-pulse rounded-full bg-brand-600"></span>
     {% if view == "setup" %}Reading your directory from Google…{% else %}Syncing with Google…{% endif %}
+  </p>
+
+  {% elif state == "applying" %}
+  <p class="flex items-center gap-2 text-sm text-slate-600" role="status">
+    <span class="size-2.5 animate-pulse rounded-full bg-brand-600"></span>
+    Updating signatures: {{ applying.processed }} of {{ applying.total }} done
   </p>
 
   {% elif state == "ok" %}

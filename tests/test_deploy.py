@@ -797,3 +797,49 @@ def test_signature_hash_is_stable_and_content_sensitive():
     assert signature_hash("<table>a</table>") == signature_hash("<table>a</table>")
     assert signature_hash("<table>a</table>") != signature_hash("<table>b</table>")
     assert len(signature_hash("é")) == 64
+
+
+# --- Sync and signature updates stay in step ------------------------------------------
+
+
+async def test_signature_updates_are_queued_before_the_sync_is_marked_finished(app, db, scripted):
+    """Otherwise a page watching the sync could see "finished" with the new hire's
+    signature not yet started, and show them as not applied."""
+    owner, directory, _ = scripted
+    directory.users.append(person("new.hire"))
+    seen = {}
+
+    async def hook(result):
+        seen["sync_status"] = (await organization_of(db, owner.org_id)).last_sync_status
+        hire = await employee(db, "new.hire@acme.test")  # already saved
+        seen["hire_reported"] = hire.id in result.changed_ids
+
+    result = await sync_org(db, app.state.google, app.state.storage, owner.org_id, hook)
+    assert result.ok
+    assert seen == {"sync_status": SyncStatus.RUNNING, "hire_reported": True}
+    assert (await organization_of(db, owner.org_id)).last_sync_status == SyncStatus.OK
+
+
+async def test_failed_sync_does_not_run_the_after_changes_step(app, db, scripted):
+    owner, directory, _ = scripted
+    directory.error = NotAuthorizedError("unauthorized_client")
+    called = []
+
+    async def hook(result):
+        called.append(result)
+
+    await sync_org(db, app.state.google, app.state.storage, owner.org_id, hook)
+    assert called == []
+
+
+async def test_deployment_in_progress_ignores_personal_tests(db, owner, mail):
+    async with db.session() as session:
+        assert await deploy_service.deployment_in_progress(session, owner.org_id) is None
+    running = await start(db, owner.org_id, SYNC)
+    async with db.session() as session:
+        found = await deploy_service.deployment_in_progress(session, owner.org_id)
+        assert found.id == running.id
+        row = await session.get(Deployment, running.id)
+        row.trigger = DeploymentTrigger.TEST
+        await session.commit()
+        assert await deploy_service.deployment_in_progress(session, owner.org_id) is None

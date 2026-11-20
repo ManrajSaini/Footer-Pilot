@@ -54,6 +54,7 @@ SKIP_NO_MAILBOX = "This person has no Gmail mailbox"
 SKIP_NOT_ELIGIBLE = "No longer active, or excluded"
 FAIL_TOO_LONG = "The signature is too long for this person"
 FAIL_TEMPORARY = "Google was temporarily unavailable. Use Retry failed to try again"
+FAIL_NOT_REMOVED = "The company signature could not be removed from this mailbox"
 
 
 class DeploymentInProgress(Exception):
@@ -151,6 +152,22 @@ async def manual_deployment_in_progress(
             Deployment.trigger == DeploymentTrigger.MANUAL,
             Deployment.status.in_(IN_PROGRESS),
         )
+    )
+    return result.scalar_one_or_none()
+
+
+async def deployment_in_progress(session: AsyncSession, org_id: uuid.UUID) -> Deployment | None:
+    """A company-wide or automatic deployment that is still writing mailboxes."""
+    await expire_stale_deployments(session, org_id)
+    result = await session.execute(
+        select(Deployment)
+        .where(
+            Deployment.org_id == org_id,
+            Deployment.trigger != DeploymentTrigger.TEST,
+            Deployment.status.in_(IN_PROGRESS),
+        )
+        .order_by(Deployment.created_at.desc())
+        .limit(1)
     )
     return result.scalar_one_or_none()
 
@@ -398,6 +415,50 @@ async def apply_signature(
             force=force,
             final_attempt=final_attempt,
         )
+
+
+async def clear_signature(
+    db: Database, google: GoogleGateways, employee_id: uuid.UUID, *, final_attempt: bool = False
+) -> bool:
+    """Remove the signature FooterPilot wrote to an excluded person's mailbox.
+
+    Only a mailbox we wrote to is touched (`applied_hash` is set): a signature someone
+    made themselves, in a mailbox excluded before anything was applied, is left alone.
+    Returns True if the mailbox was cleared. Raises RetryableError unless `final_attempt`.
+    """
+    async with db.session() as session:
+        employee = await session.get(Employee, employee_id)
+        if employee is None or not employee.excluded or employee.applied_hash is None:
+            return False  # included again in the meantime, or nothing of ours is there
+        organization = await session.get(Organization, employee.org_id)
+
+        try:
+            await google.gmail.set_signature(employee.email, "")
+        except NotAuthorizedError:
+            await _connection_lost(session, organization, None)
+            return False
+        except SkipError:
+            pass  # the mailbox is gone, so there is nothing left to remove
+        except RetryableError:
+            if not final_attempt:
+                raise
+            employee.apply_status = ApplyStatus.FAILED
+            employee.apply_error = FAIL_NOT_REMOVED
+            await session.commit()
+            return False
+        except PermanentError:
+            employee.apply_status = ApplyStatus.FAILED
+            employee.apply_error = FAIL_NOT_REMOVED
+            await session.commit()
+            return False
+
+        employee.applied_hash = None
+        employee.applied_at = None
+        employee.apply_status = ApplyStatus.NEVER
+        employee.apply_error = None
+        await session.commit()
+        logger.info("signature removed for excluded employee org_id=%s", employee.org_id)
+        return True
 
 
 class NotInDirectory(Exception):

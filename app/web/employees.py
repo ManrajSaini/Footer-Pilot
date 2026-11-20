@@ -9,8 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.models import Organization, SyncStatus, User
+from app.services import deploy as deploy_service
 from app.services import employees as employee_service
 from app.services import sync as sync_service
+from app.tasks.deploy import change_exclusion
 from app.tasks.sync import request_sync
 from app.web.deps import current_org, require_member
 from app.web.templating import templates
@@ -47,10 +49,19 @@ def _sync_state(organization: Organization) -> str:
 async def sync_context(
     session: AsyncSession, organization: Organization, view: str
 ) -> dict[str, Any]:
+    state = _sync_state(organization)
+    # A sync that changed someone is followed by writing their signature. Keep the
+    # page updating until that is done, so "Not applied yet" does not linger.
+    applying = None
+    if state != "running":
+        applying = await deploy_service.deployment_in_progress(session, organization.id)
+        if applying is not None:
+            state = "applying"
     return {
         "organization": organization,
         "view": view,
-        "state": _sync_state(organization),
+        "state": state,
+        "applying": applying,
         "sync_error": SYNC_ERRORS.get(organization.last_sync_error or "", "The sync failed."),
         "counts": await employee_service.count_employees(session, organization.id),
     }
@@ -124,7 +135,8 @@ async def sync_status(
 ) -> HTMLResponse:
     """Polled while a sync runs. Once it has finished, tells the page to reload its rows."""
     context = await sync_context(session, organization, _view(view))
-    headers = {} if context["state"] == "running" else {"HX-Trigger": "employees-changed"}
+    busy = context["state"] in ("running", "applying")
+    headers = {} if busy else {"HX-Trigger": "employees-changed"}
     return templates.TemplateResponse(request, "app/_sync_status.html", context, headers=headers)
 
 
@@ -136,12 +148,13 @@ async def set_excluded(
     organization: Organization = Depends(current_org),
     session: AsyncSession = Depends(get_session),
 ) -> HTMLResponse:
-    employee = await employee_service.set_excluded(session, organization.id, employee_id, excluded)
+    employee = await change_exclusion(session, organization, employee_id, excluded)
     if employee is None:
         raise HTTPException(status_code=404)
     return templates.TemplateResponse(
         request,
         "app/_employee_row.html",
         {"employee": employee},
-        headers={"HX-Trigger": "employee-toggled"},  # the counts line reloads itself
+        # The counts line and the status line reload themselves on this event.
+        headers={"HX-Trigger": "employee-toggled"},
     )

@@ -74,17 +74,19 @@ To be run by hand against the test domain, with results recorded here.
 | Check | Result |
 |---|---|
 | "Apply to me only" writes the signature to the admin's real mailbox | Works (2026-11-20, Classic layout) |
-| User with no existing signature: the new one appears and is used for new mail | not yet run |
-| User with one existing signature: it is replaced | not yet run |
-| User with several signatures saved in Gmail: which one is used for new mail | not yet run |
+| User with no existing signature: the new one appears and is used for new mail | Yes (2026-11-20, a newly created user) |
+| "Apply to everyone" updates every included mailbox and the summary matches | Yes (2026-11-20, 3 mailboxes) |
+| User with one existing signature: it is replaced | Yes, visible after the person reloads Gmail (2026-11-20) |
+| Excluding someone who already has the company signature | Removes it from their Gmail; including them again applies the current one (2026-11-20) |
+| User with several signatures saved in Gmail: which one is used for new mail | The company signature is added as a new one and becomes the default for new mail. Their own saved signatures are kept, not replaced (2026-11-20) |
 | Signature appears on forwards | Yes, but below the forwarded message until the person ticks the Gmail setting above (2026-11-20) |
 | Signature appears on replies | Yes, but below the quoted thread until the person ticks the Gmail setting above (2026-11-20) |
-| Gmail mobile app shows the signature | not yet run |
+| Gmail mobile app shows the signature | Yes (2026-11-20) |
 | Layout, links and images in mail received by Gmail | Partly (2026-11-20): layout and text are correct in a received message. Images did not load, as expected with local storage. Links not checked |
 | Layout, links and images in mail received by Outlook | not yet run |
 | Layout, links and images in mail received by Apple Mail | not yet run |
-| New user added in Google Admin gets a signature after the next sync | not yet run |
-| Job title changed in Google Admin changes that signature after the next sync | not yet run |
+| New user added in Google Admin gets a signature after the next sync | Yes, with no admin action, seconds after the sync (2026-11-20) |
+| Job title changed in Google Admin changes that signature after the next sync | Yes (2026-11-20) |
 
 ## Signing in during development
 

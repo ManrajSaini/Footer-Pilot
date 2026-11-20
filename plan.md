@@ -279,6 +279,8 @@ Established in Phase 5:
 - The designer's apply endpoints go through `_save_form` first, so what is applied is exactly what is on screen. "Apply to me only" runs in the request (no queue) and publishes nothing. "Apply to everyone" publishes, then starts a forced manual deployment, so it also overwrites signatures employees edited themselves.
 - One manual deployment per organisation at a time is guaranteed by a partial unique index, not by application checks. Deployments still unfinished after 30 minutes are marked failed (`expire_stale_deployments`) so they cannot block new ones.
 - The deployment page lists the *current* failed and skipped employees (latest result per person), not a per-run history. There is no per-run item table.
+- Including and excluding go through `change_exclusion` in `app/tasks/deploy.py`. Excluding queues `clear_signature`, which empties the mailbox's signature only if FooterPilot wrote it (`applied_hash` is set); a mailbox excluded before anything was applied is never touched. Including starts a one-person deployment of the live design. `applied_hash` is therefore the record of "our signature is in this mailbox".
+- `sync_org` takes an `after_changes` step that runs before the sync is marked finished, and the employees page's status fragment has an `applying` state. Together they keep the page refreshing until follow-up signature writes are done.
 - Scheduled jobs are in `app/tasks/periodic.py`: hourly `sync_all`, daily `enforce_all` at 03:30 UTC. After every successful sync, `deploy_changes_after_sync` updates the people whose details changed, if a design is published.
 - The dashboard uses `require_set_up_org` so a disconnected organisation sees an explanation and a Reconnect button; every other page still sends it to the wizard.
 - `Settings.images_are_public` is false with local storage or a loopback address; the designer warns that images will not load in real email.
@@ -414,7 +416,7 @@ Done when:
 
 ## 13. Phase 5: Apply and automatic updates
 
-**Status: built (2026-11-20).** Verified in a browser in fake mode: apply to me, apply to everyone with live progress, automatic retry of a temporary error, failure list and Retry failed, discard, settings. Not yet done: the manual checks on the real test domain listed below (they write to real mailboxes, so the owner runs them); record the results in `README.md`. Deviations from the task list: "Apply to me only" runs immediately instead of through the queue; "Apply to everyone" is always forced; the failure list shows each person's latest result instead of a per-run history.
+**Status: built (2026-11-20).** Verified in a browser in fake mode: apply to me, apply to everyone with live progress, automatic retry of a temporary error, failure list and Retry failed, discard, settings. The owner has since run the checks on the real test domain: apply to me, apply to everyone, automatic updates for a changed title and a new user, exclusion, existing and multiple signatures, and the mobile app all pass (results in `README.md`). Still open: how the signature looks in Outlook and Apple Mail, and images, which need public hosting. Deviations from the task list: "Apply to me only" runs immediately instead of through the queue; "Apply to everyone" is always forced; the failure list shows each person's latest result instead of a per-run history.
 
 **Goal:** one click puts the signature into every mailbox, and it stays correct without further action (idea.md 5.6, 5.7).
 

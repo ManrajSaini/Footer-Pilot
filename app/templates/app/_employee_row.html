@@ -43,7 +43,11 @@
     {% endif %}
   </td>
   <td class="whitespace-nowrap px-4 py-3 text-xs">
-    {% if employee.is_active and not employee.excluded %}{{ signature_labels[employee.apply_status] }}{% else %}—{% endif %}
+    {% if employee.is_active and not employee.excluded %}
+    <span {% if employee.apply_error %}title="{{ employee.apply_error }}"{% endif %}>{{ signature_labels[employee.apply_status] }}</span>
+    {% elif employee.excluded and employee.apply_status == "failed" %}
+    <span class="font-medium text-red-700" title="{{ employee.apply_error }}">Not removed</span>
+    {% else %}—{% endif %}
   </td>
   <td class="whitespace-nowrap px-4 py-3 text-right">
     {% if employee.is_active %}
@@ -51,8 +55,11 @@
             hx-post="/app/employees/{{ employee.id }}/excluded"
             hx-vals='{"excluded": "{{ "false" if employee.excluded else "true" }}"}'
             hx-target="closest tr" hx-swap="outerHTML"
+            {% if not employee.excluded and employee.applied_hash %}
+            hx-confirm="Exclude {{ employee.full_name or employee.email }}? The company signature will be removed from their Gmail."
+            {% endif %}
             aria-pressed="{{ 'false' if employee.excluded else 'true' }}"
-            title="{{ 'Excluded: will not get the company signature. Click to include.' if employee.excluded else 'Included: gets the company signature. Click to exclude.' }}"
+            title="{{ 'Excluded: has no company signature. Click to include them and apply it.' if employee.excluded else 'Included: gets the company signature. Click to exclude them and remove it from their Gmail.' }}"
             class="rounded-full px-3 py-1 text-xs font-semibold {{ 'border border-slate-300 bg-white text-slate-600 hover:bg-slate-100' if employee.excluded else 'bg-brand-600 text-white hover:bg-brand-700' }}">
       {{ "Excluded" if employee.excluded else "Included" }}
     </button>

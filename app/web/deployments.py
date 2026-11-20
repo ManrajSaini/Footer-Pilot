@@ -20,7 +20,7 @@ router = APIRouter()
 TRIGGER_LABELS = {
     DeploymentTrigger.MANUAL: "Apply to everyone",
     DeploymentTrigger.TEST: "Apply to me only",
-    DeploymentTrigger.SYNC: "Automatic update after a directory sync",
+    DeploymentTrigger.SYNC: "Automatic update",
     DeploymentTrigger.ENFORCE: "Daily re-apply",
     DeploymentTrigger.PLAN_CHANGE: "Plan change",
 }

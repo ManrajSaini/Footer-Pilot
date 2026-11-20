@@ -493,3 +493,231 @@ async def test_only_one_deployment_row_per_apply(client: AsyncClient, db, mail, 
         total = (await session.execute(select(func.count()).select_from(Deployment))).scalar_one()
     assert total == 1
     assert DeploymentTrigger.MANUAL == "manual"
+
+
+# --- The employees page while signatures are being written ----------------------------
+
+
+async def test_employees_page_keeps_updating_until_signatures_are_written(
+    client: AsyncClient, db, owner, mail, designing, run_jobs
+):
+    await apply_everyone(client, designing)  # queued, not yet run
+
+    busy = await client.get("/app/employees/sync-status", headers=HTMX)
+    assert f"Updating signatures: 0 of {ELIGIBLE} done" in " ".join(busy.text.split())
+    assert 'hx-trigger="every 2s"' in busy.text  # keeps polling
+    assert "HX-Trigger" not in busy.headers
+    assert "Not applied yet" in (await client.get("/app/employees/rows")).text
+
+    await run_jobs()
+    done = await client.get("/app/employees/sync-status", headers=HTMX)
+    assert "every 2s" not in done.text
+    assert done.headers["HX-Trigger"] == "employees-changed"  # the table reloads now
+    assert "Not applied yet" not in (await client.get("/app/employees/rows")).text
+
+
+async def test_new_hire_is_shown_as_applied_once_the_page_settles(
+    app: FastAPI, client: AsyncClient, db, make_owner, run_jobs
+):
+    from tests.fakes import ScriptedDirectory, gateways, person
+
+    directory = ScriptedDirectory([person("admin"), person("priya.raman")])
+    gmail = ScriptedGmail()
+    app.state.google = gateways(directory, gmail)
+    owner = await make_owner("admin@acme.test")
+    await sync_org(db, app.state.google, app.state.storage, owner.org_id)
+    headers = {**sign_in(client, owner), **HTMX}
+    await client.post("/app/designer/start", data={"template": "classic"}, headers=headers)
+    await apply_everyone(client, headers)
+    await run_jobs()
+
+    directory.users.append(person("new.hire", job_title="Analyst"))
+    await client.post("/app/employees/sync", headers=headers)
+    await run_jobs()  # the sync, then the new hire's signature
+
+    done = await client.get("/app/employees/sync-status", headers=HTMX)
+    assert done.headers["HX-Trigger"] == "employees-changed"
+    rows = (await client.get("/app/employees/rows", params={"q": "new.hire"})).text
+    assert "Applied" in rows and "Not applied yet" not in rows
+    assert gmail.written_to[-1] == "new.hire@acme.test"
+
+
+# --- Excluding removes the signature; including applies it ----------------------------
+
+
+async def exclude(client: AsyncClient, headers, employee_id, excluded: bool):
+    return await client.post(
+        f"/app/employees/{employee_id}/excluded",
+        data={"excluded": "true" if excluded else "false"},
+        headers=headers,
+    )
+
+
+async def test_excluding_someone_removes_the_signature_we_gave_them(
+    client: AsyncClient, db, owner, mail, designing, run_jobs, job_queue
+):
+    await apply_everyone(client, designing)
+    await run_jobs()
+    james = await employee(db, "james.okafor@acme.test")
+    assert "James Okafor" in mail.signature(james.email)
+
+    # The button warns before removing something from a mailbox.
+    rows = (await client.get("/app/employees/rows", params={"q": "james"})).text
+    assert "The company signature will be removed from their Gmail" in rows
+
+    response = await exclude(client, designing, james.id, True)
+    assert response.status_code == 200 and "Excluded" in response.text
+    await run_jobs()
+
+    assert mail.signature(james.email) == ""  # their Gmail signature is now empty
+    james = await employee(db, james.email)
+    assert james.excluded is True
+    assert (james.apply_status, james.applied_hash, james.applied_at) == ("never", None, None)
+    # Nobody else was touched.
+    assert mail.written_to.count("priya.raman@acme.test") == 1
+    assert "Priya Raman" in mail.signature("priya.raman@acme.test")
+
+
+async def test_including_someone_again_applies_the_current_signature(
+    client: AsyncClient, db, owner, mail, designing, run_jobs
+):
+    await apply_everyone(client, designing, company_tagline="Version one")
+    await run_jobs()
+    james = await employee(db, "james.okafor@acme.test")
+    await exclude(client, designing, james.id, True)
+    await run_jobs()
+
+    # The design moves on while they are excluded.
+    await apply_everyone(client, designing, company_tagline="Version two")
+    await run_jobs()
+    assert mail.signature(james.email) == ""  # still excluded, still empty
+
+    response = await exclude(client, designing, james.id, False)
+    assert "Included" in response.text
+    # The page is told to re-check, so it follows the signature being written.
+    assert response.headers["HX-Trigger"] == "employee-toggled"
+    busy = await client.get("/app/employees/sync-status", headers=HTMX)
+    assert "Updating signatures: 0 of 1 done" in " ".join(busy.text.split())
+
+    await run_jobs()
+    assert "Version two" in mail.signature(james.email)
+    assert "Version one" not in mail.signature(james.email)
+    assert (await employee(db, james.email)).apply_status == ApplyStatus.APPLIED
+    latest = (await deployments(db))[-1]
+    assert (latest.trigger, latest.total, latest.status) == ("sync", 1, "completed")
+
+
+async def test_excluding_someone_we_never_wrote_to_leaves_their_mailbox_alone(
+    client: AsyncClient, db, owner, mail, designing, run_jobs, job_queue
+):
+    """For example an executive with their own signature, excluded before applying."""
+    james = await employee(db, "james.okafor@acme.test")
+    rows = (await client.get("/app/employees/rows", params={"q": "james"})).text
+    assert "will be removed from their Gmail" not in rows  # nothing to warn about
+
+    await exclude(client, designing, james.id, True)
+    assert job_queue.jobs == {}  # no job at all
+    await apply_everyone(client, designing)
+    await run_jobs()
+    assert james.email not in mail.written_to
+
+
+async def test_including_before_anything_is_live_applies_nothing(
+    client: AsyncClient, db, owner, mail, designing, job_queue
+):
+    james = await employee(db, "james.okafor@acme.test")
+    await exclude(client, designing, james.id, True)
+    await exclude(client, designing, james.id, False)
+    assert job_queue.jobs == {} and mail.writes == [] and await deployments(db) == []
+
+
+async def test_excluding_then_including_at_once_keeps_the_signature(
+    client: AsyncClient, db, owner, mail, designing, run_jobs
+):
+    await apply_everyone(client, designing)
+    await run_jobs()
+    james = await employee(db, "james.okafor@acme.test")
+    before = mail.signature(james.email)
+
+    await exclude(client, designing, james.id, True)
+    await exclude(client, designing, james.id, False)  # changed their mind before the job ran
+    await run_jobs()
+
+    assert mail.signature(james.email) == before  # never cleared
+    james = await employee(db, james.email)
+    assert (james.excluded, james.apply_status) == (False, ApplyStatus.APPLIED)
+
+
+async def test_signature_that_cannot_be_removed_is_reported(
+    client: AsyncClient, db, owner, mail, designing, run_jobs
+):
+    await apply_everyone(client, designing)
+    await run_jobs()
+    james = await employee(db, "james.okafor@acme.test")
+    mail.fail[james.email] = PermanentError("Google refused the change (HTTP 403)")
+    await exclude(client, designing, james.id, True)
+    await run_jobs()
+
+    james = await employee(db, james.email)
+    assert james.apply_status == ApplyStatus.FAILED
+    assert "could not be removed" in james.apply_error
+    assert james.applied_hash is not None  # we still know our signature is in there
+    rows = (await client.get("/app/employees/rows", params={"q": "james"})).text
+    assert "Not removed" in rows
+
+
+async def test_removal_is_retried_after_a_temporary_error(db, owner, mail, designing, client):
+    from app.services.deploy import clear_signature
+    from tests.fakes import ScriptedDirectory, gateways
+
+    await apply_everyone(client, designing)
+    james = await employee(db, "james.okafor@acme.test")
+    async with db.session() as session:  # as if the deployment had reached them
+        row = await session.get(Employee, james.id)
+        row.applied_hash, row.apply_status, row.excluded = "abc", ApplyStatus.APPLIED, True
+        await session.commit()
+    google = gateways(ScriptedDirectory(), mail)
+
+    mail.fail[james.email] = [RetryableError("HTTP 429"), None]
+    with pytest.raises(RetryableError):  # the queue will try again
+        await clear_signature(db, google, james.id)
+    assert (await employee(db, james.email)).applied_hash == "abc"
+    assert await clear_signature(db, google, james.id) is True
+    assert mail.signature(james.email) == ""
+
+    # On the last try a temporary error is recorded instead of raised.
+    async with db.session() as session:
+        row = await session.get(Employee, james.id)
+        row.applied_hash, row.apply_status = "abc", ApplyStatus.APPLIED
+        await session.commit()
+    mail.fail[james.email] = RetryableError("HTTP 503")
+    assert await clear_signature(db, google, james.id, final_attempt=True) is False
+    assert (await employee(db, james.email)).apply_status == ApplyStatus.FAILED
+
+
+async def test_removal_stops_when_access_is_lost(client, db, owner, mail, designing, run_jobs):
+    await apply_everyone(client, designing)
+    await run_jobs()
+    james = await employee(db, "james.okafor@acme.test")
+    mail.fail[james.email] = NotAuthorizedError("unauthorized_client")
+    await exclude(client, designing, james.id, True)
+    await run_jobs()
+    async with db.session() as session:
+        assert (await session.get(Organization, owner.org_id)).status == OrgStatus.DISCONNECTED
+
+
+async def test_excluding_never_reaches_another_organisations_mailbox(
+    app, client: AsyncClient, db, make_owner, owner, mail, designing, run_jobs, job_queue
+):
+    await apply_everyone(client, designing)
+    await run_jobs()
+    james = await employee(db, "james.okafor@acme.test")
+    before = mail.signature(james.email)
+
+    globex = await make_owner("admin@globex.test")
+    headers = {**sign_in(client, globex), **HTMX}
+    response = await exclude(client, headers, james.id, True)
+    assert response.status_code == 404
+    await run_jobs()
+    assert mail.signature(james.email) == before
+    assert (await employee(db, james.email)).excluded is False
