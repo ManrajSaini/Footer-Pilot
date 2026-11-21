@@ -126,9 +126,16 @@ class Settings(BaseSettings):
         False in local development: files stored on this machine, or served from a
         loopback address, cannot be reached by Gmail.
         """
-        host = (urlsplit(self.asset_base_url).hostname or "").lower()
-        loopback = host in ("localhost", "testserver", "::1") or host.startswith("127.")
-        return self.storage_backend == "r2" and not loopback
+        return self.storage_backend == "r2" and not _is_loopback(self.asset_base_url)
+
+    @property
+    def tracking_is_public(self) -> bool:
+        """Whether tracked links can be opened by anyone who receives an email.
+
+        False in local development: they point at this machine, so they only work in
+        a browser running on it.
+        """
+        return not _is_loopback(self.tracking_base_url)
 
     @property
     def database_dsn(self) -> str:
@@ -141,6 +148,11 @@ class Settings(BaseSettings):
         """Same database through SQLAlchemy's psycopg 3 dialect (sync and async)."""
         _, _, rest = self.database_url.partition("://")
         return f"postgresql+psycopg://{rest}"
+
+
+def _is_loopback(url: str) -> bool:
+    host = (urlsplit(url).hostname or "").lower()
+    return host in ("localhost", "testserver", "::1") or host.startswith("127.")
 
 
 @lru_cache

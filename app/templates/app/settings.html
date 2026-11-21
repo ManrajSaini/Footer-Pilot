@@ -9,6 +9,10 @@
   {% if saved %}
   <p class="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900" role="status">
     Settings saved.
+    {% if deployment %}
+    Everyone's signature is being updated to match.
+    <a href="/app/deployments/{{ deployment.id }}" class="font-semibold underline">See progress</a>
+    {% endif %}
   </p>
   {% endif %}
 
@@ -29,6 +33,29 @@
         </span>
       </span>
     </label>
+
+    <h2 class="mt-8 text-lg font-semibold">Click counting</h2>
+
+    <label class="mt-4 flex items-start gap-3">
+      <input type="checkbox" name="tracking_enabled" value="1" class="mt-1 size-4 rounded border-slate-300 accent-brand-600"
+             {% if organization.tracking_enabled %}checked{% endif %}>
+      <span>
+        <span class="block text-sm font-medium text-slate-900">Count clicks on the banner, website and social links</span>
+        <span class="mt-1 block text-sm text-slate-600">
+          With this on, those links pass through FooterPilot on their way to your
+          site, so the Analytics page can show how often each is clicked. With it off,
+          the links go straight to your site and nothing is counted. Changing this
+          updates everyone's signature.
+        </span>
+      </span>
+    </label>
+    {% if not tracking_is_public %}
+    <p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+      This server can only be reached from this computer. While click counting is on,
+      counted links in real email will open only here, so leave it off when applying
+      to real mailboxes from this computer.
+    </p>
+    {% endif %}
 
     <button type="submit" class="mt-6 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
       Save settings

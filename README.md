@@ -88,6 +88,34 @@ To be run by hand against the test domain, with results recorded here.
 | New user added in Google Admin gets a signature after the next sync | Yes, with no admin action, seconds after the sync (2026-11-20) |
 | Job title changed in Google Admin changes that signature after the next sync | Yes (2026-11-20) |
 
+## Banner and click counting
+
+The Banner page puts one clickable image under everyone's signature. Upload an image (PNG, JPEG or GIF, up to 2 MB, shown at up to 600 px wide), say where it leads, add a description, check the preview and activate it. The description is required: it is what readers see when their mail program blocks images. Activating, replacing or removing a banner updates every included mailbox, with the same confirmation and progress page as "Apply to everyone". Earlier banners stay listed with their clicks.
+
+With click counting on (Settings, on by default), the banner, website and social links in a signature point at `{TRACKING_BASE_URL}/c/<token>?e=<employee id>`. That address records the click and redirects to the real destination. Email and phone links are never changed. The Analytics page shows clicks per day and per link for the last 7, 30 or 90 days.
+
+- A click row stores the link, the time and whose signature it was. No IP address and no user agent is kept.
+- Mail security scanners and link previewers that identify themselves are stored but not counted. Some do not identify themselves, so the numbers are a guide.
+- Changing a link's destination, or replacing the banner, creates a new counted link. Old ones keep redirecting, so links in emails already sent keep working.
+- Switching click counting off puts the real addresses back in every signature.
+
+**On a development machine** `TRACKING_BASE_URL` defaults to `APP_BASE_URL`, usually `http://127.0.0.1:8000`. Counted links in real email then only open on that machine. Before applying to real mailboxes from a development machine, switch click counting off in Settings (the pages warn about this), or set `TRACKING_BASE_URL` to a public address that reaches the app.
+
+Checks on the real test domain. Those marked as run were done from a development machine, where counted links only open on that machine and images are not hosted; the rest need a public address and hosted images.
+
+| Check | Result |
+|---|---|
+| Activating, replacing and removing a banner updates every included mailbox | Yes (2026-11-21, 4 mailboxes) |
+| An activated banner appears in a received email, with its image | Partly (2026-11-21): the banner is there and clickable, shown as its description. The image did not load, as expected with local storage |
+| Clicking the banner in a received email opens its target | Yes, on the development machine (2026-11-21) |
+| The click appears on the Analytics page | Yes (2026-11-21) |
+| The website link in a received email opens the right page and is counted | Yes, on the development machine (2026-11-21) |
+| Switching click counting off puts the real addresses back | Yes (2026-11-21) |
+| Banner image loads in a received email | not yet run |
+| Clicks from another device or another person are counted | not yet run |
+
+A click made while writing a message (on the signature in the draft) is counted like any other: it is the same link, and the request does not say where it was clicked.
+
 ## Signing in during development
 
 Open the app at the address in `APP_BASE_URL` (default `http://127.0.0.1:8000`), not `localhost`: the session cookie and Google's redirect are tied to that exact host.
@@ -140,7 +168,8 @@ app/
   db.py          engine and session dependency
   models/        SQLAlchemy models
   web/           routers, access rules, CSRF, rate limit, error pages, template setup
-  services/      business logic (sign-in, connecting a domain, directory sync, images)
+  services/      business logic (sign-in, connecting a domain, directory sync, images,
+                 applying signatures, banners, click counting, analytics)
   google/        gateways to Google: interfaces, real and fake implementations
   storage/       public image storage: local disk or Cloudflare R2
   signatures/    design schema, renderer and email-safe templates

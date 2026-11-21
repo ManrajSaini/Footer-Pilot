@@ -17,6 +17,8 @@ MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 UPLOAD_FORMATS = frozenset({"PNG", "JPEG", "GIF"})
 # Logos are shown at up to 200 px wide; twice that keeps them sharp on dense screens.
 LOGO_MAX_SIZE = (400, 400)
+# Banners are shown at up to 600 px wide.
+BANNER_MAX_SIZE = (1200, 1200)
 
 
 class InvalidImageError(ValueError):
@@ -61,7 +63,17 @@ def _flatten(image: Image.Image) -> Image.Image:
 
 
 def normalise_logo(data: bytes) -> ProcessedImage:
-    """An uploaded logo, shrunk to fit LOGO_MAX_SIZE and re-encoded.
+    """An uploaded logo, shrunk to fit LOGO_MAX_SIZE and re-encoded."""
+    return _normalise_upload(data, LOGO_MAX_SIZE)
+
+
+def normalise_banner(data: bytes) -> ProcessedImage:
+    """An uploaded banner, shrunk to fit BANNER_MAX_SIZE and re-encoded."""
+    return _normalise_upload(data, BANNER_MAX_SIZE)
+
+
+def _normalise_upload(data: bytes, max_size: tuple[int, int]) -> ProcessedImage:
+    """Check and re-encode an uploaded image, shrinking it to fit `max_size`.
 
     Accepts PNG, JPEG and GIF only (SVG and anything else is refused). JPEGs stay
     JPEG; PNG and GIF become PNG so transparency survives. An animated GIF keeps its
@@ -76,12 +88,12 @@ def normalise_logo(data: bytes) -> ProcessedImage:
     output = io.BytesIO()
     if source_format == "JPEG":
         image = image.convert("RGB")
-        image.thumbnail(LOGO_MAX_SIZE, Image.Resampling.LANCZOS)
+        image.thumbnail(max_size, Image.Resampling.LANCZOS)
         image.save(output, format="JPEG", quality=90, optimize=True)
         content_type, extension = "image/jpeg", "jpg"
     else:
         image = image.convert("RGBA")
-        image.thumbnail(LOGO_MAX_SIZE, Image.Resampling.LANCZOS)
+        image.thumbnail(max_size, Image.Resampling.LANCZOS)
         image.save(output, format="PNG", optimize=True)
         content_type, extension = "image/png", "png"
     return ProcessedImage(output.getvalue(), content_type, extension, image.width, image.height)

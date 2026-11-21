@@ -1,0 +1,165 @@
+{% extends "app/_layout.html" %}
+
+{% block title %}Analytics | FooterPilot{% endblock %}
+
+{% macro clicks(count) %}{{ "{:,}".format(count) }} {{ "click" if count == 1 else "clicks" }}{% endmacro %}
+
+{% block content %}
+<div class="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+  <h1 class="text-3xl font-bold tracking-tight">Analytics</h1>
+  <p class="mt-2 max-w-2xl text-sm text-slate-600">
+    How often people click the links in your company signature: the banner, your
+    website and your social profiles.
+  </p>
+
+  {# One filter row above everything it applies to. #}
+  <nav class="mt-6 flex flex-wrap gap-2" aria-label="Period">
+    {% for days in ranges %}
+    <a href="/app/analytics?days={{ days }}" {% if days == stats.days %}aria-current="page"{% endif %}
+       class="rounded-lg border px-3 py-1.5 text-sm font-medium {{ 'border-brand-600 bg-brand-50 text-brand-700' if days == stats.days else 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50' }}">
+      Last {{ days }} days
+    </a>
+    {% endfor %}
+  </nav>
+
+  {% if not organization.tracking_enabled %}
+  <p class="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+    Click counting is switched off, so new clicks are not being counted. You can turn
+    it back on in <a href="/app/settings" class="font-semibold underline">Settings</a>.
+  </p>
+  {% endif %}
+
+  <section class="mt-6 rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
+    <h2 class="text-sm font-medium text-slate-500">Clicks in the last {{ stats.days }} days</h2>
+    <p class="mt-1 text-5xl font-semibold tracking-tight text-slate-900">{{ "{:,}".format(stats.total) }}</p>
+    {% if stats.busiest %}
+    <p class="mt-2 text-sm text-slate-600">
+      Busiest day: {{ stats.busiest.day.strftime("%a %d %b") }}, with {{ clicks(stats.busiest.clicks) }}.
+    </p>
+    {% endif %}
+
+    {% if stats.total %}
+    {% set top = stats.axis_ticks[-1] %}
+    <figure class="mt-6">
+      <figcaption class="text-sm font-medium text-slate-700">Clicks per day</figcaption>
+
+      <div class="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-2">
+        {# Value axis. Each label has no height of its own, so it sits exactly on its line. #}
+        <div class="flex h-48 flex-col-reverse justify-between text-right text-[11px] tabular-nums text-slate-500" aria-hidden="true">
+          {% for tick in stats.axis_ticks %}<span class="block h-0 leading-[0]">{{ "{:,}".format(tick) }}</span>{% endfor %}
+        </div>
+
+        <div class="relative h-48">
+          {% for tick in stats.axis_ticks %}
+          <div class="absolute inset-x-0 border-t {{ 'border-slate-300' if tick == 0 else 'border-slate-200' }}"
+               style="bottom: {{ 100 * tick / top }}%"></div>
+          {% endfor %}
+
+          {# One column per day. The whole column is the hover and focus target, so a
+             thin or empty day is as easy to point at as a tall one. #}
+          <ol class="absolute inset-0 flex">
+            {% for item in stats.per_day %}
+            {% set side = "left-0" if loop.index0 < stats.days / 4 else ("right-0" if loop.index0 >= stats.days * 3 / 4 else "left-1/2 -translate-x-1/2") %}
+            <li tabindex="0" aria-label="{{ item.day.strftime('%A %d %B') }}: {{ clicks(item.clicks) }}"
+                class="group flex min-w-0 flex-1 items-end justify-center px-px outline-none hover:bg-slate-900/5 focus-visible:bg-slate-900/5">
+              <span class="relative block w-full max-w-6" style="height: {{ item.percent }}%">
+                {% if item.clicks %}
+                <span class="block h-full min-h-0.5 rounded-t bg-brand-600 group-hover:bg-brand-500 group-focus-visible:bg-brand-500"></span>
+                {% endif %}
+                <span aria-hidden="true"
+                      class="pointer-events-none absolute bottom-full z-10 mb-1.5 hidden rounded-md bg-slate-900 px-2 py-1 text-xs whitespace-nowrap text-slate-300 shadow-lg group-hover:block group-focus-visible:block {{ side }}">
+                  <strong class="font-semibold text-white">{{ clicks(item.clicks) }}</strong>
+                  {{ item.day.strftime("%a %d %b") }}
+                </span>
+              </span>
+            </li>
+            {% endfor %}
+          </ol>
+        </div>
+
+        {# Date axis: only some days are named; the rest are in the tooltip and the table. #}
+        <div></div>
+        <ol class="flex h-6" aria-hidden="true">
+          {% for item in stats.per_day %}
+          <li class="relative min-w-0 flex-1">
+            {% if item.show_label %}
+            <span class="absolute top-1.5 left-1/2 -translate-x-1/2 text-[11px] whitespace-nowrap text-slate-500 {{ 'max-sm:hidden' if stats.days == 7 and (stats.days - loop.index) % 2 else '' }}">
+              {{ item.day.strftime("%d %b") }}
+            </span>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </figure>
+
+    <details class="mt-4">
+      <summary class="cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-900">Show these numbers as a table</summary>
+      <div class="mt-3 max-h-72 overflow-y-auto rounded-lg border border-slate-200">
+        <table class="w-full text-left text-sm">
+          <thead class="sticky top-0 border-b border-slate-200 bg-white text-xs font-medium text-slate-500">
+            <tr>
+              <th scope="col" class="px-4 py-2">Day</th>
+              <th scope="col" class="px-4 py-2 text-right">Clicks</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for item in stats.per_day | reverse %}
+            <tr>
+              <td class="px-4 py-1.5 text-slate-700">{{ item.day.strftime("%a %d %b %Y") }}</td>
+              <td class="px-4 py-1.5 text-right tabular-nums text-slate-900">{{ "{:,}".format(item.clicks) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+    {% else %}
+    <p class="mt-6 rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+      No clicks in this period yet.
+    </p>
+    {% endif %}
+  </section>
+
+  <section class="mt-6 rounded-xl border border-slate-200 bg-white">
+    <h2 class="px-5 pt-5 text-sm font-semibold text-slate-900 sm:px-6">Clicks by link</h2>
+    {% if stats.links %}
+    <div class="mt-3 overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="border-y border-slate-200 text-xs font-medium text-slate-500">
+          <tr>
+            <th scope="col" class="px-5 py-2 sm:px-6">Link</th>
+            <th scope="col" class="px-5 py-2 sm:px-6">Opens</th>
+            <th scope="col" class="px-5 py-2 text-right sm:px-6">Clicks</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          {% for link in stats.links %}
+          <tr>
+            <td class="px-5 py-3 font-medium text-slate-900 sm:px-6">
+              {{ link.label }}
+              {% if link.detail %}<span class="ml-1 font-normal text-slate-500">({{ link.detail }})</span>{% endif %}
+            </td>
+            <td class="max-w-xs px-5 py-3 break-all text-slate-600 sm:px-6">{{ link.target_url }}</td>
+            <td class="px-5 py-3 text-right font-medium tabular-nums text-slate-900 sm:px-6">{{ "{:,}".format(link.clicks) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="px-5 pt-2 pb-5 text-sm text-slate-600 sm:px-6">
+      Nothing is being counted yet. Links are counted from the moment the signature
+      is applied to everyone.
+    </p>
+    {% endif %}
+  </section>
+
+  <p class="mt-6 text-xs leading-5 text-slate-500">
+    Some companies' mail security opens every link in an incoming email to check it.
+    FooterPilot leaves out the ones it recognises, but a few can still be counted, so
+    read these numbers as a guide rather than an exact figure. Days run from midnight
+    to midnight UTC. FooterPilot does not record who clicked.
+  </p>
+</div>
+{% endblock %}

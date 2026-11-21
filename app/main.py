@@ -15,7 +15,9 @@ from app.storage import build_storage
 from app.storage.local import LocalStorage
 from app.tasks import procrastinate_app
 from app.web import (
+    analytics,
     auth,
+    banner,
     dashboard,
     deployments,
     designer,
@@ -26,6 +28,7 @@ from app.web import (
     onboarding,
     public,
     ratelimit,
+    tracking,
 )
 from app.web import (
     settings as settings_pages,
@@ -93,6 +96,9 @@ def create_app() -> FastAPI:
     app.include_router(employees.router)
     app.include_router(designer.router)
     app.include_router(deployments.router)
+    app.include_router(banner.router)
+    app.include_router(analytics.router)
+    app.include_router(tracking.router)
     app.include_router(settings_pages.router)
     if settings.dev_login:  # refused by Settings when ENV=production
         app.include_router(dev.router)

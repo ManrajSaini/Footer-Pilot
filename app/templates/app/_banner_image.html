@@ -1,0 +1,25 @@
+{# The image part of the banner form. Replaced whole after an upload; the hidden field
+   carries the chosen image into the preview and into Activate. #}
+<div id="banner-image-section">
+  <input type="hidden" name="banner_asset_id" value="{{ asset.id if asset else '' }}">
+  {% if asset %}
+  <img src="{{ asset.url }}" alt="The uploaded banner" width="{{ [asset.width, 600] | min }}"
+       class="max-w-full rounded border border-slate-200 bg-white">
+  {% else %}
+  <div class="flex h-24 items-center justify-center rounded border border-dashed border-slate-300 text-xs text-slate-500">
+    No image yet
+  </div>
+  {% endif %}
+  <label class="mt-3 inline-block cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+    {{ "Choose another image" if asset else "Upload image" }}
+    {# The file is sent on its own to the upload endpoint, never with the form. #}
+    <input type="file" name="file" accept="image/png,image/jpeg,image/gif" class="sr-only"
+           hx-post="/app/banner/image" hx-encoding="multipart/form-data" hx-trigger="change"
+           hx-target="#banner-image-section" hx-swap="outerHTML" hx-sync="this:replace">
+  </label>
+  <p class="mt-2 text-xs text-slate-500">
+    PNG, JPEG or GIF, up to 2 MB. Shown up to 600 pixels wide, so a wide, short image
+    (for example 1200 by 300) works best.
+  </p>
+  {% if banner_error %}<p class="mt-1 text-xs font-medium text-red-700" role="alert">{{ banner_error }}</p>{% endif %}
+</div>

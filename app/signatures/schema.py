@@ -97,12 +97,15 @@ def normalise_url(value: object) -> object:
         hostname = urlsplit(value).hostname
     except ValueError:
         hostname = None
-    if not hostname:
+    # A single word ("https://hello") is a typo, not a site anyone can open.
+    if not hostname or "." not in hostname.strip("."):
         raise ValueError("Enter a valid web address, for example https://example.com")
     return value
 
 
-def _require_url(value: str | None) -> str:
+def _require_url(value: object) -> object:
+    """As `normalise_url`, but an empty value is an error."""
+    value = normalise_url(value)
     if value is None:
         raise ValueError("Enter a web address")
     return value
@@ -121,7 +124,7 @@ def text(max_length: int) -> type[str]:
 
 Color = Annotated[str, BeforeValidator(_validate_color)]
 OptionalHttpUrl = Annotated[str | None, BeforeValidator(normalise_url)]
-HttpUrl = Annotated[str, BeforeValidator(normalise_url), AfterValidator(_require_url)]
+HttpUrl = Annotated[str, BeforeValidator(_require_url)]
 EmailText = Annotated[
     str, BeforeValidator(clean_text), Field(max_length=254), AfterValidator(_validate_email)
 ]

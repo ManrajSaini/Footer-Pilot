@@ -5,6 +5,7 @@
 @theme {
   --color-brand-50: oklch(0.97 0.014 264);
   --color-brand-100: oklch(0.93 0.032 264);
+  --color-brand-500: oklch(0.6 0.19 268);
   --color-brand-600: oklch(0.51 0.2 268);
   --color-brand-700: oklch(0.45 0.19 268);
 }

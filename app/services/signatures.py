@@ -22,6 +22,8 @@ from app.models import (
     Plan,
     Signature,
 )
+from app.services import banners as banner_service
+from app.services import links as link_service
 from app.services.images import normalise_logo
 from app.signatures.render import EmployeeData, OrgContext, render_signature
 from app.signatures.schema import SignatureDesign, Template
@@ -166,9 +168,13 @@ async def build_org_context(
     logo = await get_logo(session, organization.id, design.logo.asset_id)
     if design.logo.asset_id is not None and logo is None:
         raise UnknownLogoError("The logo could not be found. Please upload it again.")
+    active = await banner_service.active_banner(session, organization.id)
+    banner = active[0] if active else None
     return OrgContext(
         social_icon_base_url=f"{settings.asset_base_url}/static/social",
         logo_url=logo.url if logo else None,
+        banner=banner_service.banner_data(*active) if active else None,
+        link_map=await link_service.load_link_map(session, organization, design, banner),
         # The free plan carries a small credit link (plan rules arrive with billing).
         powered_by_url=(
             f"{settings.marketing_base_url}/?ref=signature"
@@ -187,6 +193,7 @@ def employee_data(employee: Employee) -> EmployeeData:
         phone_work=employee.phone_work,
         phone_mobile=employee.phone_mobile,
         photo_url=employee.photo_url,
+        short_id=employee.short_id,
     )
 
 

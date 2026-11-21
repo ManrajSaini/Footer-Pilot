@@ -10,7 +10,8 @@ MAX_SIGNATURE_CHARS characters.
 """
 
 import re
-from dataclasses import dataclass, field
+from collections.abc import Mapping
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -53,6 +54,8 @@ class EmployeeData:
     phone_work: str = ""
     phone_mobile: str = ""
     photo_url: str | None = None
+    # Added to tracked links, so a click can be credited to this person's signature.
+    short_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -61,6 +64,12 @@ class BannerData:
     target_url: str
     alt_text: str = ""
     width_px: int = 480
+    id: str = ""  # identifies the banner's tracked link
+
+
+# (kind, ref, destination) of a link whose clicks are counted. Kinds and refs:
+# ("website", "", url), ("social", network, url), ("banner", banner id, url).
+LinkKey = tuple[str, str, str]
 
 
 @dataclass(frozen=True)
@@ -71,6 +80,9 @@ class OrgContext:
     logo_url: str | None = None
     banner: BannerData | None = None
     powered_by_url: str | None = None  # set on the free plan
+    # Tracking address for each counted link. A link missing from the map keeps its
+    # real destination. `mailto:` and `tel:` links are never in it.
+    link_map: Mapping[LinkKey, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -121,6 +133,15 @@ def _build_view(design: SignatureDesign, employee: EmployeeData, ctx: OrgContext
     show = design.fields
     company = design.company
 
+    def tracked(kind: str, ref: str, url: str) -> str:
+        """The counting address for a link, or the link itself if it is not tracked."""
+        address = ctx.link_map.get((kind, ref, url))
+        if address is None:
+            return url
+        return f"{address}?e={employee.short_id}" if employee.short_id else address
+
+    website_href = tracked("website", "", company.website_url) if company.website_url else None
+
     role_parts = [
         employee.job_title.strip() if show.show_job_title else "",
         employee.department.strip() if show.show_department else "",
@@ -137,9 +158,7 @@ def _build_view(design: SignatureDesign, employee: EmployeeData, ctx: OrgContext
     email = employee.email.strip() if show.show_email else ""
     online = [
         _Item(email, f"mailto:{email}") if email else None,
-        _Item(_display_url(company.website_url), company.website_url)
-        if company.website_url
-        else None,
+        _Item(_display_url(company.website_url), website_href) if company.website_url else None,
     ]
     office = [
         _Item(company.phone, _tel_href(company.phone), "O") if company.phone else None,
@@ -155,9 +174,13 @@ def _build_view(design: SignatureDesign, employee: EmployeeData, ctx: OrgContext
         logo = {
             "url": ctx.logo_url,
             "width": design.logo.width_px,
-            "href": design.logo.link_url or company.website_url,
+            "href": design.logo.link_url or website_href,
             "alt": company.name or "Logo",
         }
+
+    banner = ctx.banner
+    if banner is not None:
+        banner = replace(banner, target_url=tracked("banner", banner.id, banner.target_url))
 
     icon_base = ctx.social_icon_base_url.rstrip("/")
     size_px = FONT_SIZES_PX[design.brand.font_size]
@@ -172,12 +195,12 @@ def _build_view(design: SignatureDesign, employee: EmployeeData, ctx: OrgContext
         socials=[
             {
                 "label": SOCIAL_NETWORKS[social.network],
-                "url": social.url,
+                "url": tracked("social", social.network, social.url),
                 "icon_url": f"{icon_base}/{social.network}.png",
             }
             for social in design.socials
         ],
-        banner=ctx.banner,
+        banner=banner,
         powered_by_url=ctx.powered_by_url,
         styles={
             "font": FONT_STACKS[design.brand.font_family],

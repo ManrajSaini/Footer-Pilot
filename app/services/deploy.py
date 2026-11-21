@@ -39,6 +39,8 @@ from app.models import (
     User,
 )
 from app.models.deployment import IN_PROGRESS
+from app.services import banners as banner_service
+from app.services import links as link_service
 from app.services import signatures as signature_service
 from app.signatures.render import SignatureTooLongError, render_signature
 from app.signatures.schema import SignatureDesign
@@ -199,10 +201,22 @@ async def latest_test(session: AsyncSession, org_id: uuid.UUID) -> Deployment | 
 
 
 async def publish_draft(session: AsyncSession, signature: Signature) -> None:
-    """Make the current draft the live design."""
+    """Make the current draft the live design, and give its links tracking addresses."""
     signature.published_design = dict(signature.draft_design)
     signature.published_at = datetime.now(UTC)
     await session.commit()
+    organization = await session.get(Organization, signature.org_id)
+    await ensure_tracked_links(
+        session, organization, SignatureDesign.model_validate(signature.published_design)
+    )
+
+
+async def ensure_tracked_links(
+    session: AsyncSession, organization: Organization, design: SignatureDesign
+) -> None:
+    """Create tracking addresses for this design's links and the active banner."""
+    active = await banner_service.active_banner(session, organization.id)
+    await link_service.ensure_links(session, organization, design, active[0] if active else None)
 
 
 async def create_deployment(
@@ -484,6 +498,9 @@ async def apply_to_self(
     ).scalar_one_or_none()
     if employee is None or employee.status == EmployeeStatus.REMOVED:
         raise NotInDirectory
+
+    # So the test mail carries real tracked links, and a click can be tried out.
+    await ensure_tracked_links(session, organization, design)
 
     deployment = Deployment(
         id=uuid.uuid4(),

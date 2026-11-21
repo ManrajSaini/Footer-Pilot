@@ -1,0 +1,221 @@
+{% extends "app/_layout.html" %}
+
+{% block title %}Banner | FooterPilot{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/preview.js') }}" defer></script>
+{% endblock %}
+
+{% set input_class = "mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-xs placeholder:text-slate-400 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" %}
+{% set people = "%d %s" | format(eligible_count or 0, "employee" if eligible_count == 1 else "employees") %}
+
+{# An error slot. Kept on one line: `empty:hidden` only hides it when truly empty. #}
+{% macro error_slot(name) %}<p id="error-{{ name }}" class="mt-1 text-xs font-medium text-red-700 empty:hidden" role="alert">{{ errors.get(name, "") }}</p>{% endmacro %}
+
+{% macro confirm_dialog(flag, title_id, title, action, button) %}
+<div x-show="{{ flag }}" x-cloak @keydown.escape.window="{{ flag }} = false"
+     class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+     role="dialog" aria-modal="true" aria-labelledby="{{ title_id }}">
+  <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" @click.outside="{{ flag }} = false">
+    <h3 id="{{ title_id }}" class="text-lg font-semibold">{{ title }}</h3>
+    <p class="mt-2 text-sm leading-6 text-slate-600">{{ caller() }}</p>
+    <div class="mt-6 flex justify-end gap-3">
+      <button type="button" @click="{{ flag }} = false"
+              class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+        Cancel
+      </button>
+      <button type="button" @click="{{ flag }} = false"
+              hx-post="{{ action }}" hx-target="#banner-result" hx-swap="innerHTML" hx-sync="this:replace"
+              class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+        {{ button }}
+      </button>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+  <h1 class="text-3xl font-bold tracking-tight">Banner</h1>
+  <p class="mt-2 max-w-2xl text-sm text-slate-600">
+    A banner is a clickable image under everyone's signature: a product launch, an
+    event, a hiring page. One banner is active at a time, and clicks on it are counted.
+  </p>
+
+  {% if signature is none %}
+  <div class="mt-8 rounded-xl border border-slate-200 bg-white p-6">
+    <h2 class="text-lg font-semibold">Design your signature first</h2>
+    <p class="mt-1 text-sm text-slate-600">The banner is shown under the signature, so the signature comes first.</p>
+    <a href="{{ designer_path }}" class="mt-4 inline-block rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+      Go to the signature designer
+    </a>
+  </div>
+  {% else %}
+
+  <div x-data="{ activating: false, removing: false }" x-init="FooterPilot.watchPreviewFrames($el)"
+       class="mt-8 grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+
+    <div class="space-y-5">
+      <section class="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 class="text-sm font-semibold text-slate-900">Active banner</h2>
+        {% if current %}
+        <img src="{{ current.asset.url }}" alt="{{ current.banner.alt_text or 'The active banner' }}"
+             width="{{ [current.asset.width, 600] | min }}" class="mt-3 max-w-full rounded border border-slate-200 bg-white">
+        <dl class="mt-3 space-y-1 text-sm">
+          <div class="flex gap-2">
+            <dt class="shrink-0 text-slate-500">Leads to</dt>
+            <dd class="min-w-0 break-all font-medium text-slate-900">{{ current.banner.target_url }}</dd>
+          </div>
+          <div class="flex gap-2">
+            <dt class="shrink-0 text-slate-500">Active since</dt>
+            <dd class="text-slate-900">{{ current.banner.created_at.strftime("%d %b %Y") }}</dd>
+          </div>
+          <div class="flex gap-2">
+            <dt class="shrink-0 text-slate-500">Clicks</dt>
+            <dd class="text-slate-900">{{ "{:,}".format(current.clicks) }}</dd>
+          </div>
+        </dl>
+        {% if not is_published %}
+        <p class="mt-3 text-xs text-slate-500">
+          Not in anyone's mailbox yet. It goes out when you use Apply to everyone in the
+          <a href="{{ designer_path }}" class="font-semibold underline">signature designer</a>.
+        </p>
+        {% endif %}
+        <button type="button" @click="removing = true"
+                class="mt-4 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          Remove banner
+        </button>
+        {% else %}
+        <p class="mt-2 text-sm text-slate-600">No banner is active. Signatures go out without one.</p>
+        {% endif %}
+      </section>
+
+      {# The form is sent whole for the preview and for Activate. The file input is
+         excluded from the preview trigger: it uploads on its own. #}
+      <form id="banner-form" novalidate @submit.prevent
+            hx-post="/app/banner/preview"
+            hx-trigger="input[target.type!='file'] delay:300ms, banner-changed from:body"
+            hx-target="#banner-preview" hx-swap="innerHTML" hx-sync="this:replace"
+            class="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 class="text-sm font-semibold text-slate-900">{{ "Replace it with a new banner" if current else "New banner" }}</h2>
+
+        <div class="mt-4">
+          {% include "app/_banner_image.html" %}
+          {{ error_slot("banner") }}
+        </div>
+
+        <label class="mt-4 block">
+          <span class="text-sm font-medium text-slate-700">Clicking it opens</span>
+          <input type="url" name="target_url" placeholder="https://" autocomplete="off" class="{{ input_class }}">
+          {{ error_slot("target_url") }}
+        </label>
+
+        <label class="mt-4 block">
+          <span class="text-sm font-medium text-slate-700">Description</span>
+          <input type="text" name="alt_text" maxlength="160" autocomplete="off" class="{{ input_class }}"
+                 placeholder="For example: Join us at the Spring conference">
+          <span class="mt-1 block text-xs text-slate-500">
+            Required. Many mail programs block images until the reader allows them;
+            these words are shown in the banner's place, and read aloud by screen readers.
+          </span>
+          {{ error_slot("alt_text") }}
+        </label>
+
+        <button type="button" @click="activating = true"
+                class="mt-5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+          Activate banner
+        </button>
+        <div id="banner-result" aria-live="polite"></div>
+
+        {% call confirm_dialog("activating", "activate-title", "Activate this banner?", "/app/banner/activate",
+                               "Update " ~ people if is_published else "Activate banner") %}
+          {% if is_published %}
+          This adds the banner to the Gmail signature of
+          <strong class="text-slate-900">{{ people }}</strong>{% if current %} and replaces the banner they have now{% endif %}.
+          {% else %}
+          The banner is saved as the active one. Nobody's mailbox changes until you
+          apply the signature to everyone.
+          {% endif %}
+        {% endcall %}
+      </form>
+
+      {% call confirm_dialog("removing", "remove-title", "Remove the banner?", "/app/banner/remove",
+                             "Update " ~ people if is_published else "Remove banner") %}
+        {% if is_published %}
+        This takes the banner out of the Gmail signature of
+        <strong class="text-slate-900">{{ people }}</strong>. Its click count is kept.
+        {% else %}
+        The banner will no longer be part of the signature. Its click count is kept.
+        {% endif %}
+      {% endcall %}
+    </div>
+
+    <div class="self-start lg:sticky lg:top-6">
+      <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 class="text-sm font-semibold text-slate-900">Preview</h2>
+        <p class="mt-1 text-xs text-slate-500">
+          Your own signature, {{ "as it is live" if is_published else "from the current draft" }},
+          with the banner from the form once you upload one.
+        </p>
+        <div id="banner-preview" class="mt-4">
+          {% include "app/_designer_preview.html" %}
+        </div>
+        <div id="error-general">
+          {%- if errors.get("general") %}<p class="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">{{ errors["general"] }}</p>{% endif -%}
+        </div>
+      </div>
+
+      {% if not images_are_public %}
+      <p class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+        This server keeps images on this computer, so the banner image will not load in
+        real email. Its description is shown in its place.
+      </p>
+      {% endif %}
+      {% if organization.tracking_enabled and not tracking_is_public %}
+      <p class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+        Click counting is on, and this server can only be reached from this computer.
+        Counted links in real email (banner, website, social) will open only here.
+        Before applying to real mailboxes, turn click counting off in
+        <a href="/app/settings" class="font-semibold underline">Settings</a>.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+
+  <section class="mt-10">
+    <h2 class="text-lg font-semibold">Earlier banners</h2>
+    {% if past %}
+    <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <table class="w-full text-left text-sm">
+        <thead class="border-b border-slate-200 text-xs font-medium text-slate-500">
+          <tr>
+            <th scope="col" class="px-4 py-3">Banner</th>
+            <th scope="col" class="px-4 py-3">Led to</th>
+            <th scope="col" class="px-4 py-3">Shown</th>
+            <th scope="col" class="px-4 py-3 text-right">Clicks</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          {% for view in past %}
+          <tr>
+            <td class="px-4 py-3">
+              <img src="{{ view.asset.url }}" alt="{{ view.banner.alt_text or 'Earlier banner' }}" class="h-10 max-w-40 rounded border border-slate-200 object-contain">
+            </td>
+            <td class="max-w-xs px-4 py-3 break-all text-slate-700">{{ view.banner.target_url }}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-slate-700">
+              {{ view.banner.created_at.strftime("%d %b %Y") }}
+              to {{ view.banner.archived_at.strftime("%d %b %Y") if view.banner.archived_at else "now" }}
+            </td>
+            <td class="px-4 py-3 text-right font-medium tabular-nums text-slate-900">{{ "{:,}".format(view.clicks) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="mt-2 text-sm text-slate-600">None yet. A banner you replace or remove is listed here with its clicks.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

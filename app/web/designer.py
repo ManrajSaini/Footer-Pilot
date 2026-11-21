@@ -231,6 +231,7 @@ async def designer(
         "logo_max": LOGO_MAX_WIDTH,
         "eligible_count": await deploy_service.count_eligible(session, organization.id),
         "images_are_public": get_settings().images_are_public,
+        "tracking_is_public": get_settings().tracking_is_public,
     }
     return templates.TemplateResponse(request, "app/designer.html", context)
 

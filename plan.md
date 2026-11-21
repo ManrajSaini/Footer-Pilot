@@ -228,7 +228,7 @@ Established in Phase 0 (follow these in later phases):
 
 Established in Phase 1:
 
-- Renderer contract: `render_signature(design, employee, org_ctx)` in `app/signatures/render.py`, with `EmployeeData`, `OrgContext` and `BannerData` defined there. `OrgContext` carries `social_icon_base_url`, `logo_url`, `banner` and `powered_by_url`; the caller resolves assets to URLs. Banner and Powered-by rendering already work. Link rewriting for tracking is not implemented yet (Phase 6 adds a link map to `OrgContext`).
+- Renderer contract: `render_signature(design, employee, org_ctx)` in `app/signatures/render.py`, with `EmployeeData`, `OrgContext` and `BannerData` defined there. `OrgContext` carries `social_icon_base_url`, `logo_url`, `banner` and `powered_by_url`; the caller resolves assets to URLs. Banner and Powered-by rendering already work. Phase 6 added `OrgContext.link_map` and the link rewriting that uses it.
 - Decisions about what to show live in `_build_view` in Python. The Jinja templates in `app/signatures/templates/` only lay values out; read the rules at the top of `_macros.html.j2` before editing them.
 - Golden files in `tests/signatures/golden/` pin each template's exact HTML. After an intentional template change run `UPDATE_GOLDEN=1 uv run pytest tests/signatures/test_render.py` and review the diff.
 - Reuse the validated types in `app/signatures/schema.py` (`text(n)`, `Color`, `HttpUrl`, `OptionalHttpUrl`, `EmailText`) for any form that feeds a signature.
@@ -285,6 +285,18 @@ Established in Phase 5:
 - The dashboard uses `require_set_up_org` so a disconnected organisation sees an explanation and a Reconnect button; every other page still sends it to the wizard.
 - `Settings.images_are_public` is false with local storage or a loopback address; the designer warns that images will not load in real email.
 - Tests: use the `mail` fixture pattern (a `ScriptedGmail` from `tests/fakes.py`) for anything that deploys. The app's default fake Gmail deliberately has one mailbox that always fails and one that fails once, which suits manual checks but leaves an in-process test deployment unfinished.
+
+Established in Phase 6:
+
+- Tables `banners`, `tracked_links` and `click_events` are in `app/models/tracking.py`. A click row holds no IP address and no user agent, only the link, the time, the employee whose signature it was (if known) and `is_bot`.
+- `app/services/links.py` is the link service. `ensure_links` creates rows (when a design is published, on "Apply to me only", when the banner changes and when click counting is switched on); `load_link_map` only reads them, so previewing a draft never writes. `OrgContext.link_map` maps `(kind, ref, target_url)` to the counting address; the renderer leaves any link that is not in the map untouched. A changed destination gets a new row and token, and old tokens keep redirecting, so links in emails already sent never break.
+- `/c/{token}` (`app/web/tracking.py`) is the only public address that writes. It uses no session, sets no cookie, validates the token shape before touching the database, and takes the destination only from the stored row. `HEAD` redirects without recording. Recognised scanners and crawlers (`is_bot`) are stored but left out of every count.
+- The banner is not part of the design. `build_org_context` loads the active banner, so every render path gets it. One active banner per organisation is guaranteed by a partial unique index. Activating or removing one starts a `manual` deployment (not forced: only mailboxes whose signature changes are written) and is refused while another manual deployment runs.
+- Switching click counting on or off starts a `sync` deployment, which may run beside a manual one.
+- `Settings.tracking_is_public` is false when `TRACKING_BASE_URL` is a loopback address. The designer, banner page and settings then warn that counted links only open on this computer.
+- Charts are plain HTML and CSS (`app/templates/app/analytics.html`): one colour, bars at most 24 px wide with a 2 px gap, hairline grid, a hover and keyboard-focus tooltip per day, and a table of the same numbers. The numbers come from `app/services/analytics.py`; days are UTC days.
+- `HttpUrl` in `app/signatures/schema.py` now reports an empty value as "Enter a web address", and every web address needs a host with a dot (a single word such as `https://hello` is refused).
+- A banner needs a description (alt text) to be activated: an image that is blocked or fails to load, with no description, shows nothing at all.
 
 ## 8. Phase 0: Foundations
 
@@ -453,6 +465,8 @@ Done when:
 - Changing a title in the Admin console changes that employee's signature after the next sync.
 
 ## 14. Phase 6: Banners and click tracking
+
+**Status: built (2026-11-21).** Verified in a browser in fake mode on a scratch database: upload, live preview, activate with confirmation, the banner reaching every mailbox, a click redirecting and being counted, replace, remove, the analytics page at 7, 30 and 90 days on desktop and phone widths, and switching click counting off. The owner has run it on the real test domain from the development machine: activate, replace, remove, clicks counted, analytics, and switching click counting off all pass (results in `README.md`). Still open, until the app has a public address and hosted images: the banner image loading in received mail, and clicks from other devices. Deviations from the task list: the link service is `ensure_links` plus `load_link_map` instead of one `build_link_map`, so that previews never write; the tracking toggle starts a `sync` deployment.
 
 **Goal:** a promotional banner in every signature and click counts for the admin (idea.md 5.8, 5.9).
 
